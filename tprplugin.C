@@ -101,7 +101,7 @@ void read_cmap(XDR* xdrs) {
 		readReal<float>(xdrs);
 	}
 }
-void read_groups(XDR* xdrs, int ngrp) {
+void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 	int g, i, j, tmp;
 	//do_grps
 	#ifdef TPRDEBUG
@@ -109,25 +109,43 @@ void read_groups(XDR* xdrs, int ngrp) {
 	#endif
 	for(i = 0; i < ngrp; i++) {
 		tmp = readInt(xdrs);
-		//printf("Number of reads = %d\n", tmp);
+		#ifdef TPRDEBUG
+		printf("Number of reads = %d\n", tmp);
+		#endif
 		for (j = 0; j < tmp; j++) {
 			readInt(xdrs);
 		}
 	}
+	//end do_grps
 	//ngrpname
 	tmp = readInt(xdrs);
-	//printf("ngrpname = %d\n", tmp);
+	#ifdef TPRDEBUG
+	printf("ngrpname = %d\n", tmp);
+	#endif
 	for (i = 0; i < tmp; i++) {
 		g = readInt(xdrs);
-		//printf("symtabid = %d\n", g);
+		#ifdef TPRDEBUG
+		printf("symtabid = %d\n", g);
+		for (j = 0; j < SAVELEN; j++)
+			printf("%c", tpr->symtab[SAVELEN*g+j]);
+		printf("\n");
+		#endif
 	}
 	for (g = 0; g < ngrp; g++) {
 		tmp = readInt(xdrs);
-		//printf("This many chars: %d\n", tmp);
+		#ifdef TPRDEBUG
+		printf("This many chars: %d\n", tmp);
+		#endif
 		if (tmp) {
 			for (i = 0; i < tmp; i++) {
-				readChar(xdrs);
+				unsigned char c = readChar(xdrs);
+				#ifdef TPREXTRADEBUG
+				printf("%x", c);
+				#endif
 			}
+			#ifdef TPREXTRADEBUG
+			printf("\n");
+			#endif
 		}
 	}
 }
@@ -266,16 +284,18 @@ int readtprAfterPrecision (tprdata *tpr) {
 	#endif
 	tpr->symtab = (char*) malloc(SAVELEN * tpr->symtablen * sizeof(char));
 	for (i = 0; i < tpr->symtablen; i++) {
-		#ifdef TPRDEBUG
+		#ifdef TPREXTRADEBUG
 		printf("i=%d\n", i);
 		#endif
 		saveString(xdrs, &(tpr->symtab[SAVELEN * i]),tpr->wversion);
 	}
-	// for (i = 0; i < tpr->symtablen; i++) {
-	// 	for (j = 0; j < SAVELEN; j++)
-	// 		printf("%c", tpr->symtab[SAVELEN*i+j]);
-	// 	printf("\n");
-	// }
+	#ifdef TPRDEBUG
+	for (i = 0; i < tpr->symtablen; i++) {
+		for (j = 0; j < SAVELEN; j++)
+			printf("%c", tpr->symtab[SAVELEN*i+j]);
+		printf("\n");
+	}
+	#endif
 	tmp = readInt(xdrs);
 	/*printf ("System name: ");
 	for (j = 0; j < SAVELEN; j++)
@@ -345,7 +365,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 			if (tpr->version >= 52) {
 				tpr->atomicnumbers[i][j] = readInt(xdrs);
 			}
-			#ifdef TPRDEBUG
+			#ifdef TPREXTRADEBUG
 			if (i == 0)
 				printf("%d: mass %f charge %f type %d ptype %d resid %d, periodic table number %d\n", j,
 					tpr->masses[i][j], tpr->charges[i][j], tpr->types[i][j], tpr->ptypes[i][j],tpr->resids[i][j], tmp);
@@ -373,7 +393,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 			}
 			else
 				tpr->resnames[i][j] += 1;
-			#ifdef TPRDEBUG
+			#ifdef TPREXTRADEBUG
 			printf("%d\n", tpr->resnames[i][j]);
 			if ( i == 0) {
 				for (k = 0; k < SAVELEN; k++)
@@ -399,7 +419,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 			}
 			else {
 				tpr->nr[j][i] = readInt(xdrs);
-				#ifdef TPRDEBUG
+				#ifdef TPREXTRADEBUG
 				printf("j, k, interactions: %d, %d, %d\n", j, k, tpr->nr[j][i]);
 				#endif
 			}
@@ -409,7 +429,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 				printf("Interaction id: %d number of interactants %d\n", j, tpr->nr[j][i]);
 				#endif
 				readintvector(xdrs, tpr->interactionlist[j][i], tpr->nr[j][i]);
-				#ifdef TPRDEBUG
+				#ifdef TPREXTRADEBUG
 				for (k=0; k < tpr->nr[j][i]; k++) {
 					printf("%d ", tpr->interactionlist[j][i][k]);
 				}
@@ -506,7 +526,12 @@ int readtprAfterPrecision (tprdata *tpr) {
 #ifdef TPRDEBUG
 	printf("Reading groups\n");
 #endif
-	read_groups(xdrs, egcNR);
+	read_groups(xdrs, egcNR, tpr);
+	if (tpr->version >= 120) {
+		long int len = 0;
+		xdr_int64_t(xdrs, &len);
+		xdr_setpos(xdrs, xdr_getpos(xdrs) + len * 4);
+	}
 #ifdef TPRDEBUG
 	printf("Returning control\n");
 #endif
@@ -594,30 +619,23 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
 	if (tpr->readcoordinates) {
 		return MOLFILE_ERROR;
 	}
-	//printf("tpr->natoms %d\n", tpr->natoms);
 	//Get the positions.
-	//printf("Reading timestep. tsptr = %d, tscoords =%d\n", ts, ts->coords);
 	if (ts != NULL) {
-		//printf("I'm in here!\n");
-		//tmp = readInt(xdrs);
-		/*printf("%d, %d\n", tmp, natoms);
-		if (tmp != natoms) {
-			printf("This should not be possible. But it happened!\n");
-			return MOLFILE_ERROR;
-		}*/
 		readvector(xdrs, ts->coords, 3 * tpr->natoms);
 		for (int i = 0; i < 3 * natoms; i++) {
 			ts->coords[i] = 10 * ts->coords[i];
 		}
-		/*for (int i = 0; i < natoms; i+=1000) {
+		#ifdef TPRDEBUG
+		for (int i = 0; i < natoms; i+=1000) {
 			printf("Atom %d: %f %f %f\n", i, ts->coords[3*i+0], ts->coords[3*i+1],ts->coords[3*i+2]);
 			printf("Atom %d: %f %f %f\n", i+1, ts->coords[3*i+3], ts->coords[3*i+4],ts->coords[3*i+5]);
-		}*/
-		/*for (int i = 0; i < 3*natoms; i++) {
+		}
+		for (int i = 0; i < 3*natoms; i++) {
 			if (! isfinite(ts->coords[i])) {
 				printf("The %d coordinate of atom %d is not finite!\n", (i % 3), i / 3);
 			}
-		}*/
+		}
+		#endif
 		ts->A = tpr->boxdims[0] * 10;
 		ts->B = tpr->boxdims[4] * 10;
 		ts->C = tpr->boxdims[8] * 10;
@@ -985,34 +1003,39 @@ VMDPLUGIN_API int VMDPLUGIN_fini(void) { return VMDPLUGIN_SUCCESS; }
 /*
 int main (int argc, char *argv[]) {
 	FILE *fin;
-	XDR xdrs;
+	XDR *xdrs = new XDR;
 	int i, j, tmp;
 	int precision;
 	//fin = fopen("topol.tpr", "r");
-	fin = fopen("/projects/remd_00/remd-noh.tpr", "rb");
-	//fin = fopen("/projects/remd_00/remd.tpr", "rb");
-	xdrstdio_create(&xdrs, fin, XDR_DECODE);
-	xdr_int(&xdrs, &i);
+	//fin = fopen("/projects/remd_00/remd-noh.tpr", "rb");
+	fin = fopen("/projects/remd_00/remd.tpr", "rb");
+	xdrstdio_create(xdrs, fin, XDR_DECODE);
+	xdr_int(xdrs, &i);
 	printf("%d\n", i);
-	printString(&xdrs);
-	precision = readInt(&xdrs);
+	printString(xdrs);
+	precision = readInt(xdrs);
 	printf("%d\n", precision);
 	if (precision == 4) {
 		tprdata *tprdat = new tprdata;
 		tprdat->f = fin;
-		tprdat->xdrptr = &xdrs;
+		tprdat->xdrptr = xdrs;
 		readtprAfterPrecision(tprdat);
+
+		molfile_timestep_t *ts = new molfile_timestep_t;
+		ts->coords = new float[3*tprdat->natoms];
+		read_tpr_timestep(tprdat, tprdat->natoms, ts);
 		//return 0;
 	}
-	/*else if (precision == 8) {
-		tprdata<double> *tprdat = new tprdata;
-		readtprAfterPrecision<double>(&xdrs, tprdat);
-		return 0;
-	}*//*
+	// else if (precision == 8) {
+	// 	tprdata<double> *tprdat = new tprdata;
+	// 	readtprAfterPrecision<double>(&xdrs, tprdat);
+	// 	return 0;
+	// }
 	else {
 		printf("Illegal precision (requires single)\n");
 		return 1;
 	}
 	fclose(fin);
 	return 0;
-}*/
+}
+*/
