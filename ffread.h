@@ -6,8 +6,9 @@ enum {
     egcNR
 };
 
-//From topology/idef.h
-enum {
+//From topology/ifunc.h
+enum
+{
     F_BONDS,
     F_G96BONDS,
     F_MORSE,
@@ -74,6 +75,7 @@ enum {
     F_CONSTRNC,
     F_SETTLE,
     F_VSITE2,
+    F_VSITE2FD,
     F_VSITE3,
     F_VSITE3FD,
     F_VSITE3FAD,
@@ -82,13 +84,14 @@ enum {
     F_VSITE4FDN,
     F_VSITEN,
     F_COM_PULL,
+    F_DENSITYFITTING,
     F_EQM,
     F_EPOT,
     F_EKIN,
     F_ETOT,
     F_ECONSERVED,
     F_TEMP,
-    F_VTEMP_NOLONGERUSED,
+    F_VTEMP,
     F_PDISPCORR,
     F_PRES,
     F_DVDL_CONSTR,
@@ -99,7 +102,7 @@ enum {
     F_DVDL_BONDED,
     F_DVDL_RESTRAINT,
     F_DVDL_TEMPERATURE, /* not calculated for now, but should just be the energy (NVT) or enthalpy (NPT), or 0 (NVE) */
-    F_NRE               /* This number is for the total number of energies      */
+    F_NRE /* This number is for the total number of energies      */
 };
 
 //From tpxio.c
@@ -153,15 +156,17 @@ static const t_ftupd ftupd[] = {
     { 46, F_COM_PULL          },
     { 20, F_EQM               },
     { 46, F_ECONSERVED        },
-    { 69, F_VTEMP_NOLONGERUSED},
+    { 69, F_VTEMP},
     { 66, F_PDISPCORR         },
     { 54, F_DVDL_CONSTR       },
     { 76, F_ANHARM_POL        },
     { 79, F_DVDL_COUL         },
-    { 79, F_DVDL_VDW,         },
-    { 79, F_DVDL_BONDED,      },
+    { 79, F_DVDL_VDW         },
+    { 79, F_DVDL_BONDED      },
     { 79, F_DVDL_RESTRAINT    },
     { 79, F_DVDL_TEMPERATURE  },
+    { 117, F_DENSITYFITTING },
+    { 118, F_VSITE2FD }
 };
 #define asize(a) ((int)(sizeof(a)/sizeof((a)[0])))
 #define NFTUPD asize(ftupd)
@@ -177,17 +182,40 @@ void printString(XDR *xdrs) {
 	}
 	printf("\n");*/
 }
-void saveString(XDR* xdrs, char* saveloc) {
-	int len, i;
-	char buf[STRLEN];
-	xdr_int(xdrs, &len);
-	xdr_opaque(xdrs, buf, len);
-	for (i = 0; i < MIN(len, SAVELEN-1); i++) {
-		//printf("%c", buf[i]);
-		saveloc[i] = buf[i];
-	}
+// void saveString(XDR* xdrs, char* saveloc) {
+// 	int len = 0;
+//     int i;
+// 	char buf[STRLEN];
+//     xdr_int(xdrs, &len);
+//     printf("Length : %ld ", len);
+// 	xdr_opaque(xdrs, buf, len);
+// 	for (i = 0; i < MIN(len, SAVELEN-1); i++) {
+// 		printf("%c", buf[i]);
+// 		saveloc[i] = buf[i];
+// 	}
+//     saveloc[i] = '\0';
+// 	printf("\n");
+// }
+
+void saveString(XDR* xdrs, char* saveloc, int genversion) {
+    long int len = 0;
+    int i;
+    char buf[STRLEN];
+    xdr_int64_t(xdrs, &len);    
+    xdr_opaque(xdrs, buf, len);
+    for (i = 0; i < MIN(int(len), (SAVELEN-1)); i++) {
+        saveloc[i] = buf[i];
+    }
+    if (genversion >= 27) {
+        int j = len % 4;
+        //If it wasn't divisible by 4 in the first place, shift the file pointer back.
+        //XDR reads are always byte aligned, but starting in version 27, GROMACS stopped
+        //using the XDR library exclusively.
+        if (j) {
+            xdr_setpos(xdrs, xdr_getpos(xdrs) - (4-j));
+        }  
+    }
     saveloc[i] = '\0';
-	//printf("\n");
 }
 
 template<typename real>
@@ -450,6 +478,7 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             readReal<real>(xdrs);
             readReal<real>(xdrs);
             break;
+        case F_VSITE2FD:
         case F_VSITE2:
             readReal<real>(xdrs);
             break;
@@ -482,11 +511,14 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
 	            readReal<real>(xdrs);
 
             }
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
+            if (file_version < 113)
+            {
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+            }
             break;
         case F_CMAP:
             readInt(xdrs);

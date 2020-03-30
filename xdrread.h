@@ -14,6 +14,11 @@ inline int readInt (XDR* xdrs) {
 	xdr_int (xdrs, &tmp);
 	return tmp;
 }
+inline long int readInt64 (XDR* xdrs) {
+	long int tmp;
+	xdr_int64_t (xdrs, &tmp);
+	return tmp;
+}
 inline int readChar (XDR* xdrs) {
 	unsigned char tmp;
 	xdr_u_char (xdrs, &tmp);
