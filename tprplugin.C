@@ -101,6 +101,7 @@ void read_cmap(XDR* xdrs) {
 		readReal<float>(xdrs);
 	}
 }
+//do_groups
 void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 	int g, i, j, tmp;
 	//do_grps
@@ -137,15 +138,8 @@ void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 		printf("This many chars: %d\n", tmp);
 		#endif
 		if (tmp) {
-			for (i = 0; i < tmp; i++) {
-				unsigned char c = readChar(xdrs);
-				#ifdef TPREXTRADEBUG
-				printf("%x", c);
-				#endif
-			}
-			#ifdef TPREXTRADEBUG
-			printf("\n");
-			#endif
+			// Advance the pointer by tmp bytes.
+			xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp);
 		}
 	}
 }
@@ -181,8 +175,8 @@ int readtprAfterPrecision (tprdata *tpr) {
 	}
 	//Bailouts if things are too new/we can't guarantee accurately reading them.
 	if (tpr->wversion > 27 || tpr->version <= 57) {
-		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 103.\n", tpr->version);
-		printf("The generator version for your file is %d, but we can only read up to 26\n", tpr->wversion);
+		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 113.\n", tpr->version);
+		printf("The generator version for your file is %d, but we can only read up to 27\n", tpr->wversion);
 		return MOLFILE_ERROR;
 	}
 
@@ -527,11 +521,20 @@ int readtprAfterPrecision (tprdata *tpr) {
 	printf("Reading groups\n");
 #endif
 	read_groups(xdrs, egcNR, tpr);
-	if (tpr->version >= 120) {
-		long int len = 0;
-		xdr_int64_t(xdrs, &len);
-		xdr_setpos(xdrs, xdr_getpos(xdrs) + len * 4);
-	}
+#ifdef TPRDEBUG
+	printf("%d\n", xdr_getpos(xdrs));
+#endif
+	/*if (tpr->version >= 120) {
+		int len = readInt64(xdrs);
+		int* jj = new int[len];
+		#ifdef TPRDEBUG
+		printf("Intermolecular Exclusions: %d\n", len);
+		printf("%d\n", xdr_getpos(xdrs));
+		#endif
+		readintvector(xdrs, jj, len);
+		printf("%d\n", xdr_getpos(xdrs));
+		//xdr_setpos(xdrs, xdr_getpos(xdrs) + sizeof(int) * int(len));
+	}*/
 #ifdef TPRDEBUG
 	printf("Returning control\n");
 #endif
@@ -893,16 +896,16 @@ static int read_tpr_angles(void *v, int *numangles, int **angles,
 				itraction = cmapinteractions[k];
 				for (l = 0; l < tpr->nr[itraction][mtype] / 6; l++) {
 					//The 1+ comes because the angle lists are 1-indexed, since psfs are 1 indexed.
-					cmaplist[boffset + 5*l + 0] = 1 + tpr->interactionlist[itraction][mtype][6*l+1] + aoffset;
-					cmaplist[boffset + 5*l + 1] = 1 + tpr->interactionlist[itraction][mtype][6*l+2] + aoffset;
-					cmaplist[boffset + 5*l + 2] = 1 + tpr->interactionlist[itraction][mtype][6*l+3] + aoffset;
-					cmaplist[boffset + 5*l + 3] = 1 + tpr->interactionlist[itraction][mtype][6*l+4] + aoffset;
-					cmaplist[boffset + 5*l + 4] = 1 + tpr->interactionlist[itraction][mtype][6*l+2] + aoffset;
-					cmaplist[boffset + 5*l + 5] = 1 + tpr->interactionlist[itraction][mtype][6*l+3] + aoffset;
-					cmaplist[boffset + 5*l + 6] = 1 + tpr->interactionlist[itraction][mtype][6*l+4] + aoffset;
-					cmaplist[boffset + 5*l + 7] = 1 + tpr->interactionlist[itraction][mtype][6*l+5] + aoffset;
+					cmaplist[boffset + 8*l + 0] = 1 + tpr->interactionlist[itraction][mtype][6*l+1] + aoffset;
+					cmaplist[boffset + 8*l + 1] = 1 + tpr->interactionlist[itraction][mtype][6*l+2] + aoffset;
+					cmaplist[boffset + 8*l + 2] = 1 + tpr->interactionlist[itraction][mtype][6*l+3] + aoffset;
+					cmaplist[boffset + 8*l + 3] = 1 + tpr->interactionlist[itraction][mtype][6*l+4] + aoffset;
+					cmaplist[boffset + 8*l + 4] = 1 + tpr->interactionlist[itraction][mtype][6*l+2] + aoffset;
+					cmaplist[boffset + 8*l + 5] = 1 + tpr->interactionlist[itraction][mtype][6*l+3] + aoffset;
+					cmaplist[boffset + 8*l + 6] = 1 + tpr->interactionlist[itraction][mtype][6*l+4] + aoffset;
+					cmaplist[boffset + 8*l + 7] = 1 + tpr->interactionlist[itraction][mtype][6*l+5] + aoffset;
 				}
-				boffset += 5*(tpr->nr[itraction][mtype] / 6);
+				boffset += 8*(tpr->nr[itraction][mtype] / 6);
 			}
 			aoffset += tpr->atomsinmol[mtype];
 		}
@@ -980,7 +983,7 @@ VMDPLUGIN_API int VMDPLUGIN_init(void) {
 	plugin.prettyname = "Gromacs Binary Topology";
 	plugin.author = "Josh Vermaas";
 	plugin.majorv = 2020;
-	plugin.minorv = 1;//Corresponds to the Gromacs version I was basing this on.
+	plugin.minorv = 2;//Corresponds to the Gromacs version I was basing this on.
 	plugin.is_reentrant = VMDPLUGIN_THREADSAFE;
 	plugin.filename_extension = "tpr";
 	plugin.open_file_read = open_tpr_read;
@@ -1007,8 +1010,10 @@ int main (int argc, char *argv[]) {
 	int i, j, tmp;
 	int precision;
 	//fin = fopen("topol.tpr", "r");
-	//fin = fopen("/projects/remd_00/remd-noh.tpr", "rb");
-	fin = fopen("/projects/remd_00/remd.tpr", "rb");
+	//fin = fopen("/projects/remd_00/remd-nohprot.tpr", "rb");
+	//fin = fopen("/projects/remd.tpr", "rb");
+	fin = fopen("/projects/production.tpr", "rb");
+	//fin = fopen("/projects/npt01.tpr", "rb");
 	xdrstdio_create(xdrs, fin, XDR_DECODE);
 	xdr_int(xdrs, &i);
 	printf("%d\n", i);
