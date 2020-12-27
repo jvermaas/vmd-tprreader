@@ -1,4 +1,8 @@
 //From topology/topology.h
+#ifdef _WIN32
+#define MIN(a, b) ((a)<(b)? (a):(b))
+#endif
+
 enum {
     egcTC,    egcENER,   egcACC, egcFREEZE,
     egcUser1, egcUser2,  egcVCM, egcCompressedX,
@@ -173,35 +177,39 @@ static const t_ftupd ftupd[] = {
 
 
 void printString(XDR *xdrs) {
-	int len, i;
-	char buf[STRLEN];
-	xdr_int(xdrs, &len);
-	xdr_opaque(xdrs, buf, len);
-	/*for (i = 0; i < len; i++) {
-		printf("%c", buf[i]);
-	}
-	printf("\n");*/
+    int len, i;
+    char buf[STRLEN];
+    xdr_int(xdrs, &len);
+    xdr_opaque(xdrs, buf, len);
+    /*for (i = 0; i < len; i++) {
+        printf("%c", buf[i]);
+    }
+    printf("\n");*/
 }
 // void saveString(XDR* xdrs, char* saveloc) {
-// 	int len = 0;
+//  int len = 0;
 //     int i;
-// 	char buf[STRLEN];
+//  char buf[STRLEN];
 //     xdr_int(xdrs, &len);
 //     printf("Length : %ld ", len);
-// 	xdr_opaque(xdrs, buf, len);
-// 	for (i = 0; i < MIN(len, SAVELEN-1); i++) {
-// 		printf("%c", buf[i]);
-// 		saveloc[i] = buf[i];
-// 	}
+//  xdr_opaque(xdrs, buf, len);
+//  for (i = 0; i < MIN(len, SAVELEN-1); i++) {
+//      printf("%c", buf[i]);
+//      saveloc[i] = buf[i];
+//  }
 //     saveloc[i] = '\0';
-// 	printf("\n");
+//  printf("\n");
 // }
 
 void saveString(XDR* xdrs, char* saveloc, int genversion) {
-    long int len = 0;
+#ifdef _WIN32
+    long long int len = 0;
+#else
+    long len = 0;
+#endif
     int i;
     char buf[STRLEN];
-    xdr_int64_t(xdrs, &len);    
+    xdr_int64_t(xdrs, &len);
     xdr_opaque(xdrs, buf, len);
     for (i = 0; i < MIN(int(len), (SAVELEN-1)); i++) {
         saveloc[i] = buf[i];
@@ -213,14 +221,14 @@ void saveString(XDR* xdrs, char* saveloc, int genversion) {
         //using the XDR library exclusively.
         if (j) {
             xdr_setpos(xdrs, xdr_getpos(xdrs) - (4-j));
-        }  
+        }
     }
     saveloc[i] = '\0';
 }
 
 template<typename real>
 void readparams (XDR* xdrs, int file_version, int ftype) {
-	switch (ftype)
+    switch (ftype)
     {
         case F_ANGLES:
         case F_G96ANGLES:
@@ -228,15 +236,16 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
         case F_G96BONDS:
         case F_HARMONIC:
         case F_IDIHS:
-        	//Read the 4 required harmonics.
-        	readReal<real>(xdrs);
-        	readReal<real>(xdrs);
-        	readReal<real>(xdrs);
-        	readReal<real>(xdrs);
+            //Read the 4 required harmonics.
+            readReal<real>(xdrs);
+            readReal<real>(xdrs);
+            readReal<real>(xdrs);
+            readReal<real>(xdrs);
             break;
         case F_RESTRANGLES:
             readReal<real>(xdrs);
             readReal<real>(xdrs);
+            break;
         case F_LINEAR_ANGLES:
             readReal<real>(xdrs);
             readReal<real>(xdrs);
@@ -244,7 +253,7 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             readReal<real>(xdrs);
             break;
         case F_FENEBONDS:
-        	readReal<real>(xdrs);
+            readReal<real>(xdrs);
             readReal<real>(xdrs);
             break;
         case F_RESTRBONDS:
@@ -266,7 +275,7 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             readReal<real>(xdrs);
             break;
         case F_CROSS_BOND_BONDS:
-        	readReal<real>(xdrs);
+            readReal<real>(xdrs);
             readReal<real>(xdrs);
             readReal<real>(xdrs);
             break;
@@ -284,9 +293,9 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             if (file_version >= 79)
             {
                 readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
             }
             break;
         case F_QUARTIC_ANGLES:
@@ -309,8 +318,8 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             if (file_version >= 79)
             {
                 readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
             }
             break;
         case F_CUBICBONDS:
@@ -399,7 +408,7 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             if (file_version < 82)
             {
                 readInt(xdrs);
-            	readInt(xdrs);
+                readInt(xdrs);
             }
             readReal<real>(xdrs);
             readReal<real>(xdrs);
@@ -407,8 +416,8 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             if (file_version >= 82)
             {
                 readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
             }
             break;
         case F_POSRES:
@@ -506,9 +515,9 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             if (file_version < 68)
             {
                 readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
-	            readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
+                readReal<real>(xdrs);
 
             }
             if (file_version < 113)

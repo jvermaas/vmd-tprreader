@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include "gmx_internal_xdr.h"
+#endif
+
 #include "tprplugin.C"
 int main (int argc, char *argv[]) {
 	for (int fcount=1; fcount < argc; fcount++) {
@@ -21,6 +25,7 @@ int main (int argc, char *argv[]) {
 
 			molfile_timestep_t *ts = new molfile_timestep_t;
 			ts->coords = new float[3*tprdat->natoms];
+			ts->velocities = new float[3*tprdat->natoms];
 			read_tpr_timestep(tprdat, tprdat->natoms, ts);
 			//return 0;
 		}
@@ -33,6 +38,9 @@ int main (int argc, char *argv[]) {
 			printf("Illegal precision (requires single)\n");
 			return 1;
 		}
+		fseek(fin, 0L, SEEK_END);
+		long length = ftell(fin);
+        printf("END : %ld\n", length);
 		fclose(fin);
 		delete xdrs;
 	}
