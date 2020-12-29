@@ -126,6 +126,7 @@ struct tprdata {
     int *molbtype, *molbnmol, *molbnatoms;
     XDR* xdrptr;
     FILE *f;
+    int has_velocities;
     int readcoordinates;
 };
 
