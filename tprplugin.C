@@ -119,8 +119,15 @@ void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 		printf("This many chars: %d\n", tmp);
 		#endif
 		if (tmp) {
-			// Advance the pointer by tmp bytes.
-			xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp);
+			//For reasons that aren't clear to me, writer version 27 has a different way of reading/writing the chars.
+			if (tpr->wversion >=27) {
+				// Advance the pointer by tmp bytes.
+				xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp);
+			}
+			else {
+				for (j = 0; j < tmp; j++)
+					readChar(xdrs);
+			}
 		}
 	}
 }

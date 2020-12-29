@@ -31,6 +31,10 @@ int main (int argc, char *argv[]) {
 			int natoms = tprdat->natoms;
 			//printf("Total number of atoms: %d, %d\n", *natoms, tprdat->natoms);
 			//printf("Finished initial reading\n");
+			molfile_timestep_t *ts = new molfile_timestep_t;
+			ts->coords = new float[3*tprdat->natoms];
+			ts->velocities = new float[3*tprdat->natoms];
+			read_tpr_timestep(tprdat, tprdat->natoms, ts);
 		}
 		else {
 			printf("Illegal precision (requires single)\n");
