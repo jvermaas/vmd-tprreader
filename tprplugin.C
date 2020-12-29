@@ -10,30 +10,11 @@ version 4.0 or later. This means TPX format version 58 and later.
 */
 #define STRLEN 4096
 #define SAVELEN 8
+
+#include "tprformat.h"
 #include "xdrread.h"
 #include "ffread.h"
-//This holds the meat and potatoes, the results after extracting all the topology info from the tpr file.
-struct tprdata {
-	int version; //Version of the file format (fver)
-	int wversion; //Version of the generation code that made the file. (Equivalent to fgen)
-	int natoms, ngtc; //This is the TOTAL number of atoms.
-	float boxdims[9];
-	char *symtab;//Looks like internal gromacs names. Truncate to 8 charachters for storage
-	//(longer ones aren't related to atom names, types or residues)
-	int symtablen, nmoltypes, nmolblock;
-	int *atomsinmol, *resinmol;
-	int *molnames;
-	float **charges, **masses;
-	int **resids, **ptypes;
-	unsigned short **types;
-	int **atomnameids, **atomtypeids, **resnames, **atomicnumbers;
-	int **interactionlist[F_NRE];
-	int *nr[F_NRE];
-	int *molbtype, *molbnmol, *molbnatoms;
-	XDR* xdrptr;
-	FILE *f;
-	int readcoordinates;
-};
+
 
 template<typename real>
 void readff(XDR* xdrs, int version) {
@@ -469,14 +450,15 @@ int readtprAfterPrecision (tprdata *tpr) {
 		#ifdef TPRDEBUG
 		printf("posresXA: %d\n", k);
 		#endif
-		for (j = 0; j < k; j++) {
+		//Position restraints have a float for every coordinate, hence the multiplier by 3.
+		for (j = 0; j < 3 * k; j++) {
 			readReal<float>(xdrs);
 		}
 		k = readInt(xdrs);
 		#ifdef TPRDEBUG
 		printf("posresXB: %d\n", k);
 		#endif
-		for (j = 0; j < k; j++) {
+		for (j = 0; j < 3 * k; j++) {
 			readReal<float>(xdrs);
 		}
 		#ifdef TPRDEBUG
@@ -962,8 +944,8 @@ static void close_tpr_read(void *mydata) {
 	free(tpr->symtab);
 	free(tpr->atomsinmol);
 	free(tpr->resinmol);
-	xdr_destroy(tpr->xdrptr);
-	delete tpr->xdrptr;
+	// xdr_destroy(tpr->xdrptr);
+	// delete tpr->xdrptr;
 	delete tpr;
 	//printf("TPR file read completely\n");
 }
