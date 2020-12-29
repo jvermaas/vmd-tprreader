@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#define MIN(a, b) ((a)<(b)? (a):(b))
+#endif
+
 void printString(XDR *xdrs) {
 	int len, i;
 	char buf[STRLEN];

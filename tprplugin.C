@@ -951,8 +951,8 @@ static void close_tpr_read(void *mydata) {
 	free(tpr->symtab);
 	free(tpr->atomsinmol);
 	free(tpr->resinmol);
-	// xdr_destroy(tpr->xdrptr);
-	// delete tpr->xdrptr;
+	xdr_destroy(tpr->xdrptr);
+	delete tpr->xdrptr;
 	delete tpr;
 	//printf("TPR file read completely\n");
 }
