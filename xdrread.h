@@ -14,6 +14,15 @@ inline int readInt (XDR* xdrs) {
     xdr_int (xdrs, &tmp);
     return tmp;
 }
+inline int readIntTPR (tprdata* tpr) {
+	tpr->f;
+	int result;
+	if (fread(&result, 4, 1, tpr->f) != 1) {
+		printf("Could not read integer at position %ld\n", ftell(tpr->f));
+		return -1;
+	}
+	return result;
+}
 inline long long int readInt64 (XDR* xdrs) {
 #ifdef _WIN32
     long long int tmp;

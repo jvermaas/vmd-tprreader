@@ -19,32 +19,11 @@ version 4.0 or later. This means TPX format version 58 and later.
 #endif
 
 #define STRLEN 4096
-#define SAVELEN 15
+#define SAVELEN 8
+
+#include "tprformat.h"
 #include "xdrread.h"
 #include "ffread.h"
-//This holds the meat and potatoes, the results after extracting all the topology info from the tpr file.
-typedef struct  {
-    int version; //Version of the file format (fver)
-    int wversion; //Version of the generation code that made the file. (Equivalent to fgen)
-    int natoms, ngtc; //This is the TOTAL number of atoms.
-    float boxdims[9];
-    char *symtab;//Looks like internal gromacs names. Truncate to 8 charachters for storage
-    //(longer ones aren't related to atom names, types or residues)
-    int symtablen, nmoltypes, nmolblock;
-    int *atomsinmol, *resinmol;
-    int *molnames;
-    float **charges, **masses;
-    int **resids, **ptypes;
-    unsigned short **types;
-    int **atomnameids, **atomtypeids, **resnames, **atomicnumbers;
-    int **interactionlist[F_NRE];
-    int *nr[F_NRE];
-    int *molbtype, *molbnmol, *molbnatoms;
-    XDR* xdrptr;
-    FILE *f;
-    int readcoordinates;
-    int has_velocities;
-} tprdata;
 
 template<typename real>
 void readff(XDR* xdrs, int version) {
@@ -114,400 +93,404 @@ void read_cmap(XDR* xdrs) {
 }
 //do_groups
 void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
-    int g, i, j, tmp;
-    //do_grps
-    #ifdef TPRDEBUG
-    printf("ngrp = %d\n", ngrp);
-    #endif
-    for(i = 0; i < ngrp; i++) {
-        tmp = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf("Number of reads = %d\n", tmp);
-        #endif
-        for (j = 0; j < tmp; j++) {
-            readInt(xdrs);
-        }
-    }
-    //end do_grps
-    //ngrpname
-    tmp = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("ngrpname = %d\n", tmp);
-    #endif
-    for (i = 0; i < tmp; i++) {
-        g = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf("symtabid = %d\n", g);
-        for (j = 0; j < SAVELEN; j++)
-            printf("%c", tpr->symtab[SAVELEN*g+j]);
-        printf("\n");
-        #endif
-    }
-    for (g = 0; g < ngrp; g++) {
-        tmp = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf("This many chars: %d\n", tmp);
-        #endif
-        if (tmp!=0) {
-            // Advance the pointer by tmp bytes.
-            //xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp); //has bug
-            for(int m = 0; m < tmp; m++) readChar(xdrs);
-        }
-    }
+	int g, i, j, tmp;
+	//do_grps
+	#ifdef TPRDEBUG
+	printf("ngrp = %d\n", ngrp);
+	#endif
+	for(i = 0; i < ngrp; i++) {
+		tmp = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf("Number of reads = %d\n", tmp);
+		#endif
+		for (j = 0; j < tmp; j++) {
+			readInt(xdrs);
+		}
+	}
+	//end do_grps
+	//ngrpname
+	tmp = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("ngrpname = %d\n", tmp);
+	#endif
+	for (i = 0; i < tmp; i++) {
+		g = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf("symtabid = %d\n", g);
+		for (j = 0; j < SAVELEN; j++)
+			printf("%c", tpr->symtab[SAVELEN*g+j]);
+		printf("\n");
+		#endif
+	}
+	for (g = 0; g < ngrp; g++) {
+		tmp = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf("This many chars: %d\n", tmp);
+		#endif
+		if (tmp) {
+			//For reasons that aren't clear to me, writer version 27 has a different way of reading/writing the chars.
+			if (tpr->wversion >=27) {
+				// Advance the pointer by tmp bytes.
+				xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp);
+			}
+			else {
+				for (j = 0; j < tmp; j++)
+					readChar(xdrs);
+			}
+		}
+	}
 }
 int readtprAfterPrecision (tprdata *tpr) {
-    //Start at do_tpx, trace down to do_tpxheader
-    XDR *xdrs = tpr->xdrptr;
-    tpr->readcoordinates = 0;
-    long fsize;
-    float dummy;
-    int tmp, i, j,k;
-    unsigned int ui;
-    int hasIR, hasCoord, hasV, hasF, hasTop, hasDim, hasIntermoleculeBonds, hasGBSA;
-    int numcmap;
-    float boxoffset[9];
-    float boxv[9];
-    unsigned short sdummy;
-    bool bClear;
-    int sum = 0;
-    tpr->version = readInt(xdrs);
-    printf("File Format Version: %d, ", tpr->version);
+	//Start at do_tpx, trace down to do_tpxheader
+	XDR *xdrs = tpr->xdrptr;
+	tpr->readcoordinates = 0;
+	long fsize;
+	float dummy;
+	int tmp, i, j,k;
+	unsigned int ui;
+	int hasIR, hasCoord, hasV, hasF, hasTop, hasDim, hasIntermoleculeBonds, hasGBSA;
+	int numcmap;
+	float boxoffset[9];
+	float boxv[9];
+	unsigned short sdummy;
+	bool bClear;
+	int sum = 0;
+	tpr->version = readInt(xdrs);
+	printf("File Format Version: %d\n", tpr->version);
 
-    if (tpr->version >= 77 && tpr->version <= 79) {
-        printString(xdrs);
-    }
+	if (tpr->version >= 77 && tpr->version <= 79) {
+		printString(xdrs);
+	}
 
-    tpr->wversion = readInt(xdrs);
-    printf("Generator Version: %d\n", tpr->wversion);
+	tpr->wversion = readInt(xdrs);
+	printf("Generator Version: %d\n", tpr->wversion);
+	
+	if (tpr->version >= 81) {
+		printString(xdrs);
+		//I dunno why this is wrong. Should say "release", but it totally doesn't.
+		xdr_setpos(xdrs, 4 + xdr_getpos(xdrs));
+	}
+	//Bailouts if things are too new/we can't guarantee accurately reading them.
+	if (tpr->wversion > 27 || tpr->version <= 57) {
+		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 113.\n", tpr->version);
+		printf("The generator version for your file is %d, but we can only read up to 27\n", tpr->wversion);
+		return MOLFILE_ERROR;
+	}
 
-    if (tpr->version >= 81) {
-        printString(xdrs);
-        //I dunno why this is wrong. Should say "release", but it totally doesn't.
-        xdr_setpos(xdrs, 4 + xdr_getpos(xdrs));
-    }
-    //Bailouts if things are too new/we can't guarantee accurately reading them.
-    if (tpr->wversion > 27 || tpr->version <= 57 ) {
-        printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 113.\n", tpr->version);
-        printf("The generator version for your file is %d, but we can only read up to 27\n", tpr->wversion);
-        return MOLFILE_ERROR;
-    }
+	//If we were dealing with TPA files, we'd need to do something here. Not a clue what.
+	//do_section line in the gromacs source.
+	tpr->natoms = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Natoms: %d\n", tpr->natoms);
+	#endif
+	tpr->ngtc = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Ngtc: %d\n", tpr->ngtc);
+	#endif
+	if (tpr->version < 62) {
+		i = readInt(xdrs);
+		dummy = readReal<float>(xdrs);
+	}
 
-    //If we were dealing with TPA files, we'd need to do something here. Not a clue what.
-    //do_section line in the gromacs source.
-    tpr->natoms = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Natoms: %d\n", tpr->natoms);
-    #endif
-    tpr->ngtc = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Ngtc: %d\n", tpr->ngtc);
-    #endif
-    if (tpr->version < 62) {
-        i = readInt(xdrs);
-        dummy = readReal<float>(xdrs);
-    }
+	if (tpr->version >=79) {
+		xdr_int(xdrs, &tmp);
+		#ifdef TPRDEBUG
+		printf("FEP state: %d\n", tmp);
+		#endif
+	}
+	dummy = readReal<float>(xdrs);
+	#ifdef TPRDEBUG
+	printf("Lambda: %f\n", dummy);
+	#endif
+	hasIR = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("IR state?: %d\n", hasIR);
+	#endif
+	hasTop = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Contains topology: %d\n", hasTop);
+	#endif
+	hasCoord = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Contains coordinates: %d\n", hasCoord);
+	#endif
+	hasV = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Contains velocities: %d\n", hasV);
+	#endif
+  tpr->has_velocities = 0;
+  if(hasV) tpr->has_velocities = 1;
+	hasF = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Contains forces: %d\n", hasF);
+	#endif
+	hasDim = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Contains dimensions: %d\n", hasDim);
+	#endif
+	if (tpr->wversion >= 27) {
+		fsize = readInt64(xdrs);
+		#ifdef TPRDEBUG
+		printf("Filesize: %d\n", fsize);
+		#endif
+	}
+	//End of do_tpxheader
+	if (hasDim) {
+		readvector(xdrs, (tpr->boxdims), 9);
+		#ifdef TPRDEBUG
+		printf("Box dim: (%f %f %f), (%f %f %f), (%f %f %f)\n", tpr->boxdims[0],tpr->boxdims[1],tpr->boxdims[2],
+		 	tpr->boxdims[3],tpr->boxdims[4],tpr->boxdims[5],tpr->boxdims[6],tpr->boxdims[7],tpr->boxdims[8]);
+		#endif
+		if (tpr->version >= 51) {
+			readvector(xdrs, boxoffset, 9);
+		}
+		else {
+			boxoffset[0] = boxoffset[1] = boxoffset[2] = 0;
+		}
+		#ifdef TPRDEBUG
+		printf("Box offset: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxoffset[0],boxoffset[1],boxoffset[2],
+			boxoffset[3],boxoffset[4],boxoffset[5],boxoffset[6],boxoffset[7],boxoffset[8]);
+		#endif
+		readvector(xdrs, boxv, 9);
+		#ifdef TPRDEBUG
+		printf("Box vel: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxv[0],boxv[1],boxv[2],
+			boxv[3],boxv[4],boxv[5],boxv[6],boxv[7],boxv[8]);
+		#endif
+	}
+	//Dump the thermostat storage stuff. VMD wouldn't know what to do with it anyway.
+	if (tpr->ngtc) {
+		if (tpr->version < 69) {
+			for (i = 0; i < tpr->ngtc; i++) {
+				dummy = readReal<float>(xdrs);
+				//printf("NGTC %d: %f\n", i, dummy);
+			}
+		}
+		for (i = 0; i < tpr->ngtc; i++) {
+			dummy = readReal<float>(xdrs);
+			//printf("NGTC %d: %f\n", i, dummy);
+		}
+	}
+	//do_mtop starts here, which starts by reading the symtab (do_symtab)
+	tpr->symtablen = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("Symtab length: %d\n", tpr->symtablen);
+	#endif
+	tpr->symtab = (char*) malloc(SAVELEN * tpr->symtablen * sizeof(char));
+	for (i = 0; i < tpr->symtablen; i++) {
+		#ifdef TPREXTRADEBUG
+		printf("i=%d\n", i);
+		#endif
+		saveString(xdrs, &(tpr->symtab[SAVELEN * i]),tpr->wversion);
+	}
+	#ifdef TPRDEBUG
+	for (i = 0; i < tpr->symtablen; i++) {
+		for (j = 0; j < SAVELEN; j++)
+			printf("%c", tpr->symtab[SAVELEN*i+j]);
+		printf("\n");
+	}
+	#endif
+	tmp = readInt(xdrs);
+	/*printf ("System name: ");
+	for (j = 0; j < SAVELEN; j++)
+		printf("%c", tpr->symtab[SAVELEN*tmp+j]);
+	printf("\n");*/
+	//Now "read" in the forcefield. This SHOULD be do_ffparams
+	//printf("%d\n", xdr_getpos(xdrs));
+	readff<float>(xdrs, tpr->version);
+	//printf("%d\n", xdr_getpos(xdrs));
 
-    if (tpr->version >=79) {
-        xdr_int(xdrs, &tmp);
-        #ifdef TPRDEBUG
-        printf("FEP state: %d\n", tmp);
-        #endif
-    }
-    dummy = readReal<float>(xdrs);
-    #ifdef TPRDEBUG
-    printf("Lambda: %f\n", dummy);
-    #endif
-    hasIR = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("IR state?: %d\n", hasIR);
-    #endif
-    hasTop = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Contains topology: %d\n", hasTop);
-    #endif
-    hasCoord = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Contains coordinates: %d\n", hasCoord);
-    #endif
-    hasV = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Contains velocities: %d\n", hasV);
-    #endif
-    tpr->has_velocities = 0;
-    if(hasV) tpr->has_velocities = 1;
-    //printf(stderr, "DDDDDDDDDDD: %d %d\n", tpr->has_velocities, hasV);
-    hasF = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Contains forces: %d\n", hasF);
-    #endif
-    hasDim = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Contains dimensions: %d\n", hasDim);
-    #endif
-    if (tpr->version >= 119 && tpr->wversion >= 27) {
-        fsize = readInt64(xdrs);
-        #ifdef TPRDEBUG
-        printf("Filesize: %ld\n", fsize);
-        #endif
-    }
-    //End of do_tpxheader
-
-
-    if (hasDim) {
-        readvector(xdrs, (tpr->boxdims), 9);
-        #ifdef TPRDEBUG
-        printf("Box dim: (%f %f %f), (%f %f %f), (%f %f %f)\n", tpr->boxdims[0],tpr->boxdims[1],tpr->boxdims[2],
-            tpr->boxdims[3],tpr->boxdims[4],tpr->boxdims[5],tpr->boxdims[6],tpr->boxdims[7],tpr->boxdims[8]);
-        #endif
-        if (tpr->version >= 51) {
-            readvector(xdrs, boxoffset, 9);
-        }
-        else {
-            boxoffset[0] = boxoffset[1] = boxoffset[2] = 0;
-        }
-        #ifdef TPRDEBUG
-        printf("Box offset: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxoffset[0],boxoffset[1],boxoffset[2],
-            boxoffset[3],boxoffset[4],boxoffset[5],boxoffset[6],boxoffset[7],boxoffset[8]);
-        #endif
-        readvector(xdrs, boxv, 9);
-        #ifdef TPRDEBUG
-        printf("Box vel: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxv[0],boxv[1],boxv[2],
-            boxv[3],boxv[4],boxv[5],boxv[6],boxv[7],boxv[8]);
-        #endif
-    }
-    //Dump the thermostat storage stuff. VMD wouldn't know what to do with it anyway.
-    if (tpr->ngtc) {
-        if (tpr->version < 69) {
-            for (i = 0; i < tpr->ngtc; i++) {
-                dummy = readReal<float>(xdrs);
-                //printf("NGTC %d: %f\n", i, dummy);
-            }
-        }
-        for (i = 0; i < tpr->ngtc; i++) {
-            dummy = readReal<float>(xdrs);
-            //printf("NGTC %d: %f\n", i, dummy);
-        }
-    }
-    //do_mtop starts here, which starts by reading the symtab (do_symtab)
-    tpr->symtablen = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("Symtab length: %d\n", tpr->symtablen);
-    #endif
-    tpr->symtab = (char*) malloc(SAVELEN * tpr->symtablen * sizeof(char));
-    for (i = 0; i < tpr->symtablen; i++) {
-        #ifdef TPREXTRADEBUG
-        printf("i=%d\n", i);
-        #endif
-        saveString(xdrs, &(tpr->symtab[SAVELEN * i]),tpr->wversion);
-    }
-    #ifdef TPRDEBUG
-    for (i = 0; i < tpr->symtablen; i++) {
-        for (j = 0; j < SAVELEN; j++)
-            printf("%c", tpr->symtab[SAVELEN*i+j]);
-        printf("\n");
-    }
-    #endif
-    tmp = readInt(xdrs);
-    /*printf ("System name: ");
-    for (j = 0; j < SAVELEN; j++)
-        printf("%c", tpr->symtab[SAVELEN*tmp+j]);
-    printf("\n");*/
-    //Now "read" in the forcefield. This SHOULD be do_ffparams
-    //printf("%d\n", xdr_getpos(xdrs));
-    readff<float>(xdrs, tpr->version);
-    //printf("%d\n", xdr_getpos(xdrs));
-
-    //Read in the type of molecules.
-    tpr->nmoltypes = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("nmoltypes: %d\n", tpr->nmoltypes);
-    #endif
-    tpr->atomsinmol = (int*) malloc(sizeof(int) * tpr->nmoltypes);
-    //printf("Malloced a thing\n");
-    tpr->molnames = (int*) malloc(sizeof(int) * tpr->nmoltypes);
-    tpr->resinmol = (int*) malloc(sizeof(int) * tpr->nmoltypes);
-    tpr->charges = (float**) malloc(sizeof(float*) * tpr->nmoltypes);
-    tpr->masses = (float**) malloc(sizeof(float*) * tpr->nmoltypes);
-    tpr->types = (unsigned short**) malloc(sizeof(unsigned short*) * tpr->nmoltypes);
-    tpr->ptypes = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    tpr->resids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    tpr->atomnameids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    tpr->atomtypeids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    tpr->atomicnumbers = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    tpr->resnames = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-    for (j = 0; j < F_NRE; j++) {
-        tpr->interactionlist[j] = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
-        tpr->nr[j] = (int*) malloc(sizeof(int) * tpr->nmoltypes);
-    }
-
-    //printf("Malloced things\n");
-    //do_moltype
-    for (i = 0; i < tpr->nmoltypes; i++) {
-        tpr->molnames[i] = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf ("Mol name %d: ", i);
-        for (j = 0; j < SAVELEN; j++)
-            printf("%c", tpr->symtab[SAVELEN*tpr->molnames[i]+j]);
-        printf("\n");
-        #endif
-        tpr->atomsinmol[i] = readInt(xdrs);
-        tpr->resinmol[i] = readInt(xdrs);
-        tpr->charges[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
-        tpr->masses[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
-        tpr->types[i] = (unsigned short*) malloc(sizeof(unsigned short) * tpr->atomsinmol[i]);
-        tpr->ptypes[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-        tpr->resids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-        tpr->atomicnumbers[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-        #ifdef TPRDEBUG
-        printf("%d atoms, %d residues in molecule %d\n", tpr->atomsinmol[i], tpr->resinmol[i], i);
-        #endif
-        for (j=0; j < tpr->atomsinmol[i]; j++) {
-            tpr->masses[i][j] = readReal<float>(xdrs);
-            tpr->charges[i][j] = readReal<float>(xdrs);
-            readReal<float>(xdrs); //mB
-            readReal<float>(xdrs); //cB
-            xdr_u_short(xdrs, &(tpr->types[i][j]));
-            xdr_u_short(xdrs, &sdummy);//typeB
-            if (tpr->wversion >=27) {
-                xdr_setpos(xdrs, xdr_getpos(xdrs)-4);
-            }
-            tpr->ptypes[i][j] = readInt(xdrs);
-            tpr->resids[i][j] = readInt(xdrs);
-            if (tpr->version >= 52) {
-                tpr->atomicnumbers[i][j] = readInt(xdrs);
-            }
-            #ifdef TPREXTRADEBUG
-            if (i == 0)
-                printf("%d: mass %f charge %f type %d ptype %d resid %d, periodic table number %d\n", j,
-                    tpr->masses[i][j], tpr->charges[i][j], tpr->types[i][j], tpr->ptypes[i][j],tpr->resids[i][j], tmp);
-            #endif
-        }
-        tpr->atomnameids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-        readintvector(xdrs, tpr->atomnameids[i], tpr->atomsinmol[i]);
-        tpr->atomtypeids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-        readintvector(xdrs, tpr->atomtypeids[i], tpr->atomsinmol[i]);
-        for (j = 0; j < tpr->atomsinmol[i]; j++) {
-            readReal<float>(xdrs);
-        }
-        //Read residues
-        tpr->resnames[i] = (int*) malloc(sizeof(int) * tpr->resinmol[i]);
-        #ifdef TPRDEBUG
-        printf("%d residues in mol %d\n", tpr->resinmol[i], i);
-        #endif
-        for (j = 0; j < tpr->resinmol[i]; j++) {
-            tpr->resnames[i][j] = readInt(xdrs);
-            if (tpr->version >=63) {
-                if (tpr->wversion < 27)
-                    xdr_setpos(xdrs, 8 + xdr_getpos(xdrs));
-                else
-                    xdr_setpos(xdrs, 5 + xdr_getpos(xdrs));
-            }
-            else
-                tpr->resnames[i][j] += 1;
-            #ifdef TPREXTRADEBUG
-            printf("%d\n", tpr->resnames[i][j]);
-            if ( i == 0) {
-                for (k = 0; k < SAVELEN; k++)
-                    printf("%c", tpr->symtab[SAVELEN*tpr->resnames[i][j]+k]);
-                printf("\n");
-            }
-            #endif
-        }
-        //do_ilists
-        //printf ("Atoms in mol %d: %d\n", i, tpr->atomsinmol[i]);
-        //Here is where we would read the i-lists, however we only need a subset.
-        //Based on the stuff in src/gmxlib/ifunc.c, we only need bonds (index 0),
-        //angles (index 10), dihedrals (index 18 and 19), impropers (index 21 and 22), and CMAP cross terms (index 25)
-        for (j = 0; j < F_NRE; j++) {
-            bClear = FALSE;
-            for (k = 0; k < NFTUPD; k++) {
-                if (tpr->version < ftupd[k].fvnr && j == ftupd[k].ftype) {
-                    bClear = TRUE;
-                }
-            }
-            if (bClear) {
-                tpr->nr[j][i] = 0;
-            }
-            else {
-                tpr->nr[j][i] = readInt(xdrs);
-                #ifdef TPREXTRADEBUG
-                printf("j, k, interactions: %d, %d, %d\n", j, k, tpr->nr[j][i]);
-                #endif
-            }
-            if (tpr->nr[j][i] != 0) {
-                tpr->interactionlist[j][i] = (int*) malloc(sizeof(int) * tpr->nr[j][i]);
-                #ifdef TPRDEBUG
-                printf("Interaction id: %d number of interactants %d\n", j, tpr->nr[j][i]);
-                #endif
-                readintvector(xdrs, tpr->interactionlist[j][i], tpr->nr[j][i]);
-                #ifdef TPREXTRADEBUG
-                for (k=0; k < tpr->nr[j][i]; k++) {
-                    printf("%d ", tpr->interactionlist[j][i][k]);
-                }
-                printf("\n");
-                #endif
-            }
-            else {
-                tpr->interactionlist[j][i] = NULL;
-            }
-        }
-        //end do_ilists
+	//Read in the type of molecules.
+	tpr->nmoltypes = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("nmoltypes: %d\n", tpr->nmoltypes);
+	#endif
+	tpr->atomsinmol = (int*) malloc(sizeof(int) * tpr->nmoltypes);
+	//printf("Malloced a thing\n");
+	tpr->molnames = (int*) malloc(sizeof(int) * tpr->nmoltypes);
+	tpr->resinmol = (int*) malloc(sizeof(int) * tpr->nmoltypes);
+	tpr->charges = (float**) malloc(sizeof(float*) * tpr->nmoltypes);
+	tpr->masses = (float**) malloc(sizeof(float*) * tpr->nmoltypes);
+	tpr->types = (unsigned short**) malloc(sizeof(unsigned short*) * tpr->nmoltypes);
+	tpr->ptypes = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	tpr->resids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	tpr->atomnameids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	tpr->atomtypeids = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	tpr->atomicnumbers = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	tpr->resnames = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+	for (j = 0; j < F_NRE; j++) {
+		tpr->interactionlist[j] = (int**) malloc(sizeof(int*) * tpr->nmoltypes);
+		tpr->nr[j] = (int*) malloc(sizeof(int) * tpr->nmoltypes);
+	}
+	
+	//printf("Malloced things\n");
+	//do_moltype
+	for (i = 0; i < tpr->nmoltypes; i++) {
+		tpr->molnames[i] = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf ("Mol name %d: ", i);
+		for (j = 0; j < SAVELEN; j++)
+			printf("%c", tpr->symtab[SAVELEN*tpr->molnames[i]+j]);
+		printf("\n");
+		#endif
+		tpr->atomsinmol[i] = readInt(xdrs);
+		tpr->resinmol[i] = readInt(xdrs);
+		tpr->charges[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
+		tpr->masses[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
+		tpr->types[i] = (unsigned short*) malloc(sizeof(unsigned short) * tpr->atomsinmol[i]);
+		tpr->ptypes[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
+		tpr->resids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
+		tpr->atomicnumbers[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
+		#ifdef TPRDEBUG
+		printf("%d atoms, %d residues in molecule %d\n", tpr->atomsinmol[i], tpr->resinmol[i], i);
+		#endif
+		for (j=0; j < tpr->atomsinmol[i]; j++) {
+			tpr->masses[i][j] = readReal<float>(xdrs);
+			tpr->charges[i][j] = readReal<float>(xdrs);
+			readReal<float>(xdrs); //mB
+			readReal<float>(xdrs); //cB
+			xdr_u_short(xdrs, &(tpr->types[i][j]));
+			xdr_u_short(xdrs, &sdummy);//typeB
+			if (tpr->wversion >=27) {
+				xdr_setpos(xdrs, xdr_getpos(xdrs)-4);
+			}
+			tpr->ptypes[i][j] = readInt(xdrs);
+			tpr->resids[i][j] = readInt(xdrs);
+			if (tpr->version >= 52) {
+				tpr->atomicnumbers[i][j] = readInt(xdrs);
+			}
+			#ifdef TPREXTRADEBUG
+			if (i == 0)
+				printf("%d: mass %f charge %f type %d ptype %d resid %d, periodic table number %d\n", j,
+					tpr->masses[i][j], tpr->charges[i][j], tpr->types[i][j], tpr->ptypes[i][j],tpr->resids[i][j], tmp);
+			#endif
+		}
+		tpr->atomnameids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
+		readintvector(xdrs, tpr->atomnameids[i], tpr->atomsinmol[i]);
+		tpr->atomtypeids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
+		readintvector(xdrs, tpr->atomtypeids[i], tpr->atomsinmol[i]);
+		for (j = 0; j < tpr->atomsinmol[i]; j++) {
+			readReal<float>(xdrs);
+		}
+		//Read residues
+		tpr->resnames[i] = (int*) malloc(sizeof(int) * tpr->resinmol[i]);
+		#ifdef TPRDEBUG
+		printf("%d residues in mol %d\n", tpr->resinmol[i], i);
+		#endif
+		for (j = 0; j < tpr->resinmol[i]; j++) {
+			tpr->resnames[i][j] = readInt(xdrs);
+			if (tpr->version >=63) {
+				if (tpr->wversion < 27)
+					xdr_setpos(xdrs, 8 + xdr_getpos(xdrs));
+				else
+					xdr_setpos(xdrs, 5 + xdr_getpos(xdrs));
+			}
+			else
+				tpr->resnames[i][j] += 1;
+			#ifdef TPREXTRADEBUG
+			printf("%d\n", tpr->resnames[i][j]);
+			if ( i == 0) {
+				for (k = 0; k < SAVELEN; k++)
+					printf("%c", tpr->symtab[SAVELEN*tpr->resnames[i][j]+k]);
+				printf("\n");
+			}
+			#endif
+		}
+		//do_ilists
+		//printf ("Atoms in mol %d: %d\n", i, tpr->atomsinmol[i]);
+		//Here is where we would read the i-lists, however we only need a subset.
+		//Based on the stuff in src/gmxlib/ifunc.c, we only need bonds (index 0),
+		//angles (index 10), dihedrals (index 18 and 19), impropers (index 21 and 22), and CMAP cross terms (index 25)
+		for (j = 0; j < F_NRE; j++) {
+			bClear = FALSE;
+			for (k = 0; k < NFTUPD; k++) {
+				if (tpr->version < ftupd[k].fvnr && j == ftupd[k].ftype) {
+					bClear = TRUE;
+				}
+			}
+			if (bClear) {
+				tpr->nr[j][i] = 0;
+			}
+			else {
+				tpr->nr[j][i] = readInt(xdrs);
+				#ifdef TPREXTRADEBUG
+				printf("j, k, interactions: %d, %d, %d\n", j, k, tpr->nr[j][i]);
+				#endif
+			}
+			if (tpr->nr[j][i] != 0) {
+				tpr->interactionlist[j][i] = (int*) malloc(sizeof(int) * tpr->nr[j][i]);
+				#ifdef TPRDEBUG
+				printf("Interaction id: %d number of interactants %d\n", j, tpr->nr[j][i]);
+				#endif
+				readintvector(xdrs, tpr->interactionlist[j][i], tpr->nr[j][i]);
+				#ifdef TPREXTRADEBUG
+				for (k=0; k < tpr->nr[j][i]; k++) {
+					printf("%d ", tpr->interactionlist[j][i][k]);
+				}
+				printf("\n");
+				#endif
+			}
+			else {
+				tpr->interactionlist[j][i] = NULL;
+			}
+		}
+		//end do_ilists
 
 
-        //do_block and do_blocka. Remove these. VMD doesn't know what they are.
-        //They refer to atomgroups and exclusions. Useful for dynamics, not useful for visualization.
-        k = readInt(xdrs);
-        for (j = 0; j <= k; j++) {
-            readInt(xdrs);
-        }
-        k = readInt(xdrs);
-        tmp = readInt(xdrs);
-        for (j = 0; j <= k; j++) {
-            readInt(xdrs);
-        }
-        for (j = 0; j < tmp; j++) {
-            readInt(xdrs);
-        }
-    }
-    //end of do_moltype
-    tpr->nmolblock = readInt(xdrs);
-    #ifdef TPRDEBUG
-    printf("nmolblock: %d\n", tpr->nmolblock);
-    #endif
-    //do_molblock
-    tpr->molbtype = (int*) malloc(tpr->nmolblock * sizeof(int));
-    tpr->molbnmol = (int*) malloc(tpr->nmolblock * sizeof(int));
-    tpr->molbnatoms = (int*) malloc(tpr->nmolblock * sizeof(int));
-    for (i = 0; i < tpr->nmolblock; i++) {
-        tpr->molbtype[i] = readInt(xdrs);
-        tpr->molbnmol[i] = readInt(xdrs);
-        tpr->molbnatoms[i] = readInt(xdrs);
-        k = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf("posresXA: %d\n", k);
-        #endif
-        for (j = 0; j < k; j++) {
-            readReal<float>(xdrs);
-        }
-        k = readInt(xdrs);
-        #ifdef TPRDEBUG
-        printf("posresXB: %d\n", k);
-        #endif
-        for (j = 0; j < k; j++) {
-            readReal<float>(xdrs);
-        }
-        #ifdef TPRDEBUG
-        printf("Segname: %d ", tpr->molbtype[i]);
-        for (j = 0; j < SAVELEN; j++) {
-            printf("%c", tpr->symtab[SAVELEN*tpr->molnames[tpr->molbtype[i]]+j]);
-        }
-        printf("\n\tNumatoms: %d\n", tpr->molbnatoms[i]);
-        printf("\tNumcopies: %d\n", tpr->molbnmol[i]);
-        #endif
-        //sum += tpr->molbnatoms[i] * tpr->molbnmol[i];
-    }
-    //Burn off the number of atoms after the do_molblock
-    tmp = readInt(xdrs);
+		//do_block and do_blocka. Remove these. VMD doesn't know what they are.
+		//They refer to atomgroups and exclusions. Useful for dynamics, not useful for visualization.
+		k = readInt(xdrs);
+		for (j = 0; j <= k; j++) {
+			readInt(xdrs);
+		}
+		k = readInt(xdrs);
+		tmp = readInt(xdrs);
+		for (j = 0; j <= k; j++) {
+			readInt(xdrs);
+		}
+		for (j = 0; j < tmp; j++) {
+			readInt(xdrs);
+		}
+	}
+	//end of do_moltype
+	tpr->nmolblock = readInt(xdrs);
+	#ifdef TPRDEBUG
+	printf("nmolblock: %d\n", tpr->nmolblock);
+	#endif
+	//do_molblock
+	tpr->molbtype = (int*) malloc(tpr->nmolblock * sizeof(int));
+	tpr->molbnmol = (int*) malloc(tpr->nmolblock * sizeof(int));
+	tpr->molbnatoms = (int*) malloc(tpr->nmolblock * sizeof(int));
+	for (i = 0; i < tpr->nmolblock; i++) {
+		tpr->molbtype[i] = readInt(xdrs);
+		tpr->molbnmol[i] = readInt(xdrs);
+		tpr->molbnatoms[i] = readInt(xdrs);
+		k = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf("posresXA: %d\n", k);
+		#endif
+		//Position restraints have a float for every coordinate, hence the multiplier by 3.
+		for (j = 0; j < 3 * k; j++) {
+			readReal<float>(xdrs);
+		}
+		k = readInt(xdrs);
+		#ifdef TPRDEBUG
+		printf("posresXB: %d\n", k);
+		#endif
+		for (j = 0; j < 3 * k; j++) {
+			readReal<float>(xdrs);
+		}
+		#ifdef TPRDEBUG
+		printf("Segname: %d ", tpr->molbtype[i]);
+		for (j = 0; j < SAVELEN; j++) {
+			printf("%c", tpr->symtab[SAVELEN*tpr->molnames[tpr->molbtype[i]]+j]);
+		}
+		printf("\n\tNumatoms: %d\n", tpr->molbnatoms[i]);
+		printf("\tNumcopies: %d\n", tpr->molbnmol[i]);
+		#endif
+		//sum += tpr->molbnatoms[i] * tpr->molbnmol[i];
+	}
+	//Burn off the number of atoms after the do_molblock
+	tmp = readInt(xdrs);
 #ifdef TPRDEBUG
     printf("What is this? %d. It should be the number of atoms.\n", tmp);
 #endif
