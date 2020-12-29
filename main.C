@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include "gmx_internal_xdr.h"
+#endif
+
 #include "tprplugin.C"
 int main (int argc, char *argv[]) {
 	for (int fcount=1; fcount < argc; fcount++) {
@@ -40,6 +44,9 @@ int main (int argc, char *argv[]) {
 			printf("Illegal precision (requires single)\n");
 			return NULL;
 		}
+		fseek(fin, 0L, SEEK_END);
+		long length = ftell(fin);
+        printf("END : %ld\n", length);
 		fclose(fin);
 	}
 	return 0;
