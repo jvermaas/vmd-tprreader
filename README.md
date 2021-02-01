@@ -18,3 +18,14 @@ ${ARCHDIR}/tprplugin-s.o: tprplugin.C ${PLUGINAPI}
 ```
 	
 Now I think this is a very useful feature, however it is not quite ready to be incorparated into VMD proper, as it depends on <rpc/rpc.h>, which is the standard XDR library on Linux systems, but does not have an equivalent in Windows. If you think this is important, help me out by eliminating the dependencies on xdr_read functions! Some of these are equivalent to utilities found in Gromacs.h in the VMD source tree.
+
+## Testing
+
+If you want to see how this works on a set of tprs, you can do the following:
+
+```bash
+make
+./tprtest testtprs/*
+```
+
+That would tell you if your tpr files are readable or not, along with some diagnostic information.
