@@ -666,12 +666,21 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
         }
         #endif
 
-        ts->A = tpr->boxdims[0] * 10;
-        ts->B = tpr->boxdims[4] * 10;
-        ts->C = tpr->boxdims[8] * 10;
-        ts->alpha = 90 - asin(tpr->boxdims[3] * tpr->boxdims[6] + tpr->boxdims[4] * tpr->boxdims[7] + tpr->boxdims[5] * tpr->boxdims[8]) * 90.0 / M_PI_2;
-        ts->beta  = 90 - asin(tpr->boxdims[0] * tpr->boxdims[6] + tpr->boxdims[1] * tpr->boxdims[7] + tpr->boxdims[2] * tpr->boxdims[8]) * 90.0 / M_PI_2;
-        ts->gamma = 90 - asin(tpr->boxdims[0] * tpr->boxdims[3] + tpr->boxdims[1] * tpr->boxdims[4] + tpr->boxdims[2] * tpr->boxdims[5]) * 90.0 / M_PI_2;
+        ts->A = sqrt(tpr->boxdims[0]*tpr->boxdims[0] + tpr->boxdims[1]*tpr->boxdims[1] + tpr->boxdims[2] * tpr->boxdims[2]) * 10;
+        ts->B = sqrt(tpr->boxdims[3]*tpr->boxdims[3] + tpr->boxdims[4]*tpr->boxdims[4] + tpr->boxdims[5] * tpr->boxdims[5]) * 10;
+        ts->C = sqrt(tpr->boxdims[6]*tpr->boxdims[6] + tpr->boxdims[7]*tpr->boxdims[7] + tpr->boxdims[8] * tpr->boxdims[8]) * 10;
+
+        if(ts->A <= 0 || ts->B <= 0 || ts->C <=0)
+        {
+            ts->A     = ts->B    = ts->C     = 0;
+            ts->alpha = ts->beta = ts->gamma = 0;
+        }
+        else
+        {
+        	ts->alpha = acos((tpr->boxdims[3] * tpr->boxdims[6] + tpr->boxdims[4] * tpr->boxdims[7] + tpr->boxdims[5] * tpr->boxdims[8])*100/(ts->A*ts->B)) * 90.0 / M_PI_2;
+        	ts->beta  = acos((tpr->boxdims[0] * tpr->boxdims[6] + tpr->boxdims[1] * tpr->boxdims[7] + tpr->boxdims[2] * tpr->boxdims[8])*100/(ts->A*ts->C)) * 90.0 / M_PI_2;
+        	ts->gamma = acos((tpr->boxdims[0] * tpr->boxdims[3] + tpr->boxdims[1] * tpr->boxdims[4] + tpr->boxdims[2] * tpr->boxdims[5])*100/(ts->B*ts->C)) * 90.0 / M_PI_2;
+        }
         //printf("%f %f %f %f %f %f\n", ts->A, ts->B, ts->C, ts->alpha, ts->beta, ts->gamma);
     }
     tpr->readcoordinates = 1;
