@@ -74,6 +74,7 @@ enum
     F_CONSTR,
     F_CONSTRNC,
     F_SETTLE,
+    F_VSITE1,
     F_VSITE2,
     F_VSITE2FD,
     F_VSITE3,
@@ -191,7 +192,8 @@ static const t_ftupd ftupd[] = {
     { 79, F_DVDL_RESTRAINT    },
     { 79, F_DVDL_TEMPERATURE  },
     { 117, F_DENSITYFITTING },
-    { 118, F_VSITE2FD }
+    { 118, F_VSITE2FD },
+    { 121, F_VSITE1 }
 };
 #define asize(a) ((int)(sizeof(a)/sizeof((a)[0])))
 #define NFTUPD asize(ftupd)

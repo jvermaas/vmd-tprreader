@@ -287,19 +287,6 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             readReal<real>(xdrs);
             break;
         case F_RBDIHS:
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            readReal<real>(xdrs);
-            break;
         case F_FOURDIHS:
             readReal<real>(xdrs);
             readReal<real>(xdrs);
@@ -323,6 +310,7 @@ void readparams (XDR* xdrs, int file_version, int ftype) {
             readReal<real>(xdrs);
             readReal<real>(xdrs);
             break;
+        case F_VSITE1: break; //VSite1 has no parameters
         case F_VSITE2FD:
         case F_VSITE2:
             readReal<real>(xdrs);
