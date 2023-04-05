@@ -17,7 +17,8 @@ ${ARCHDIR}/tprplugin-s.o: tprplugin.C ${PLUGINAPI}
 	${CXX} ${SCXXFLAGS} $(INCDIR) $(DEF)"VMDPLUGIN=molfile_tprplugin" -c $< $(COPTO)$@
 ```
 	
-Now I think this is a very useful feature, however it is not quite ready to be incorparated into VMD proper, as it depends on <rpc/rpc.h>, which is the standard XDR library on Linux systems, but does not have an equivalent in Windows. If you think this is important, help me out by eliminating the dependencies on xdr_read functions! Some of these are equivalent to utilities found in Gromacs.h in the VMD source tree.
+Now I think this is a very useful feature, and is getting closer to being incorporated into VMD proper.
+Currently, we use the GROMACS internal xdr headers, which while intended to work on Windows, also work on Linux to avoid depending on `<rpc.h>`.
 
 ## Testing
 

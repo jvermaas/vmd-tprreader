@@ -1,7 +1,3 @@
-#ifdef _WIN32
-#include "gmx_internal_xdr.h"
-#endif
-
 #include "tprplugin.C"
 int main (int argc, char *argv[]) {
 	for (int fcount=1; fcount < argc; fcount++) {

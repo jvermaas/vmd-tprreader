@@ -9,14 +9,10 @@
 version 4.0 or later. This means TPX format version 58 and later.
 */
 
-#ifdef _WIN32
 #define M_PI            3.14159265358979
 #define M_PI_2          (M_PI/2.0)
 #include "gmx_internal_xdr.h"
 #include "gmx_internal_xdr.cpp"
-#else
-#include <rpc/rpc.h>
-#endif
 
 #define STRLEN 4096
 #define SAVELEN 8
@@ -521,10 +517,7 @@ int readtprAfterPrecision (tprdata *tpr) {
     printf("Reading groups\n");
 #endif
     read_groups(xdrs, egcNR, tpr);
-#ifdef TPRDEBUG
-    printf("%d\n", xdr_getpos(xdrs));
-#endif
-    /*if (tpr->version >= 120) {
+    if (tpr->version >= 120) {
         int len = readInt64(xdrs);
         int* jj = new int[len];
         #ifdef TPRDEBUG
@@ -532,10 +525,11 @@ int readtprAfterPrecision (tprdata *tpr) {
         printf("%d\n", xdr_getpos(xdrs));
         #endif
         readintvector(xdrs, jj, len);
-        printf("%d\n", xdr_getpos(xdrs));
+        //printf("%d\n", xdr_getpos(xdrs));
         //xdr_setpos(xdrs, xdr_getpos(xdrs) + sizeof(int) * int(len));
-    }*/
+    }
 #ifdef TPRDEBUG
+    printf("This is my file position: %d\n", xdr_getpos(xdrs));
     printf("Returning control\n");
 #endif
     return MOLFILE_SUCCESS;
@@ -630,9 +624,8 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
         }
         #ifdef TPRDEBUG
         printf("\nAtoms Coordinates: (A)\n");
-        for (int i = 0; i < natoms; i+=500) {
-            printf("Atom %d: %f %f %f\n", i,   ts->coords[3*i+0], ts->coords[3*i+1],ts->coords[3*i+2]);
-            printf("Atom %d: %f %f %f\n", i+1, ts->coords[3*i+3], ts->coords[3*i+4],ts->coords[3*i+5]);
+        for (int i = 0; i < natoms; i++) {
+            printf("x[%d]: %f %f %f\n", i,   ts->coords[3*i+0], ts->coords[3*i+1],ts->coords[3*i+2]);
         }
         printf("coordinate end position: %d\n", xdr_getpos(xdrs));
 
@@ -657,10 +650,9 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
         if(tpr->has_velocities)
         {
             printf("\nAtoms Velocities: (A/ps)\n");
-            for (int i = 0; i < natoms; i+=500)
+            for (int i = 0; i < natoms; i++)
             {
-                printf("Atom %d: %f %f %f\n", i,   ts->velocities[3*i+0], ts->velocities[3*i+1],ts->velocities[3*i+2]);
-                printf("Atom %d: %f %f %f\n", i+1, ts->velocities[3*i+3], ts->velocities[3*i+4],ts->velocities[3*i+5]);
+                printf("v[%d]: %f %f %f\n", i,   ts->velocities[3*i+0], ts->velocities[3*i+1],ts->velocities[3*i+2]);
             }
             printf("velocity end position: %d\n", xdr_getpos(xdrs));
         }
