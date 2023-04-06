@@ -9,16 +9,14 @@
 version 4.0 or later. This means TPX format version 58 and later.
 */
 
-#define M_PI            3.14159265358979
-#define M_PI_2          (M_PI/2.0)
 #include "Gromacs.h"
 
 #define STRLEN 4096
 #define SAVELEN 8
+#define TRUE (1)
+#define FALSE (0)
 
-#include "tprformat.h"
-//#include "xdrread.h"
-#include "ffread.h"
+#include "tprplugin.h"
 
 int readff(md_file *mf, int version) {
     int atnr, ntypes, i, j;
@@ -1068,7 +1066,7 @@ static void close_tpr_read(void *mydata) {
 	free(tpr->symtab);
 	free(tpr->atomsinmol);
 	free(tpr->resinmol);
-	//delete tpr->mf;
+	delete tpr->mf;
 	delete tpr;
 	//printf("TPR file read completely\n");
 }
