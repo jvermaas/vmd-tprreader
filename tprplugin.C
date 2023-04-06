@@ -168,7 +168,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 	}
 	//Bailouts if things are too new/we can't guarantee accurately reading them.
 	if (tpr->wversion > 28 || tpr->version <= 57) {
-		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 122.\n", tpr->version);
+		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 128.\n", tpr->version);
 		printf("The generator version for your file is %d, but we can only read up to 28\n", tpr->wversion);
 		return MOLFILE_ERROR;
 	}
@@ -1031,8 +1031,8 @@ VMDPLUGIN_API int VMDPLUGIN_init(void) {
     tpr_plugin.name = "tpr";
     tpr_plugin.prettyname = "Gromacs Binary Topology";
     tpr_plugin.author = "Josh Vermaas";
-    tpr_plugin.majorv = 2020;
-    tpr_plugin.minorv = 2;//Corresponds to the Gromacs version I was basing this on.
+    tpr_plugin.majorv = 2023;
+    tpr_plugin.minorv = 0;//Corresponds to the Gromacs version I was basing this on.
     tpr_plugin.is_reentrant = VMDPLUGIN_THREADUNSAFE;
     tpr_plugin.filename_extension = "tpr";
     tpr_plugin.open_file_read = open_tpr_read;
