@@ -200,7 +200,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 
 	//Bailouts if things are too new/we can't guarantee accurately reading them.
 	if (tpr->wversion > 28 || tpr->version <= 57) {
-		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 122.\n", tpr->version);
+		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 128.\n", tpr->version);
 		printf("The generator version for your file is %d, but we can only read up to 28\n", tpr->wversion);
 		return MOLFILE_ERROR;
 	}
@@ -558,10 +558,13 @@ int readtprAfterPrecision (tprdata *tpr) {
         	fseek(mf->f, -3, SEEK_CUR);
         }
     }
-    if (tpr->version < 128) {//128 is tpxv_RemoveAtomtypes
+
+    if (tpr->version < 128) //128 is tpxv_RemoveAtomtypes
+    {
 	    //do_atomtypes
 	    if (read_atomtypes(mf, tpr->version)) return MOLFILE_ERROR;
 	}
+
 #ifdef TPRDEBUG
     printf("Reading cmap terms\n");
 #endif
