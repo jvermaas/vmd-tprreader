@@ -490,7 +490,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 #ifdef TPRDEBUG
     printf("What is this? %d. It should be the number of atoms.\n", tmp);
 #endif
-    if (tpr->version >= 103) {
+    if (tpr->version >= 103) { //103 is tpxv_IntermolecularBondeds
         hasIntermoleculeBonds = readInt(xdrs);
 #ifdef TPRDEBUG
         printf("intermolecularbondeds %d\n", hasIntermoleculeBonds);
@@ -503,8 +503,13 @@ int readtprAfterPrecision (tprdata *tpr) {
             xdr_setpos(xdrs, xdr_getpos(xdrs) - 3);
         }
     }
-    //do_atomtypes
-    read_atomtypes(xdrs, tpr->version);
+    
+    if (tpr->version < 128) //128 is tpxv_RemoveAtomtypes
+    {
+    	//do_atomtypes
+        read_atomtypes(xdrs, tpr->version);
+    }
+
 #ifdef TPRDEBUG
     printf("Reading cmap terms\n");
 #endif

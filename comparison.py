@@ -17,10 +17,9 @@ def loadtprtestcoordinates(dumpfile):
 			data = np.array(line[line.index(" ")+1:].split(" "), dtype=float)
 			outdata.append(data)
 		return np.vstack(outdata)
-for tprfile in glob.glob("testtprs/2023*tpr"):
-	subprocess.call(f"gmx dump -s {tprfile} > dump.log", shell=True, stderr=subprocess.DEVNULL)
+for tprfile in glob.glob("testtprs/*tpr"):
+	subprocess.call(f"gmx dump -s {tprfile} > dump.log", shell=True)
 	gmxcoordinates = 10 * loaddumpcoordinates("dump.log") # Multiply by 10 to convert positions to Angstroms
 	subprocess.call(f"./tprtest {tprfile} > tprtest.log", shell=True)
 	tprtestcoordinates = loadtprtestcoordinates("tprtest.log")
 	print(tprfile, np.amax(np.abs(gmxcoordinates-tprtestcoordinates)))
-exit()
