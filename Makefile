@@ -1,6 +1,6 @@
 all:
 	#Makes the tprtest executable
-	g++ -I./include -DTPRDEBUG main.C -o tprtest
+	g++ -I./include -DTPRDEBUG -DTPRTEST main.C -o tprtest
 pythontest:
 	python3 comparison.py
 test:

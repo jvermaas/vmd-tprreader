@@ -1076,7 +1076,7 @@ static void close_tpr_read(void *mydata) {
  * Initialization stuff down here
  */
 
-#if 0
+#ifndef TPRTEST
 
 static molfile_plugin_t tpr_plugin;
 
