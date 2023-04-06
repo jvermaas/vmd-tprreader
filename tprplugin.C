@@ -207,7 +207,6 @@ int readtprAfterPrecision (tprdata *tpr) {
 		j = tpr_string(mf, buf, STRLEN);
 		fread(buf, 4, 1, mf->f);
 		// //I dunno why this is wrong. Should say "release", but it totally doesn't.
-		// xdr_setpos(xdrs, 4 + xdr_getpos(xdrs));
 
 	}
 
@@ -265,7 +264,6 @@ int readtprAfterPrecision (tprdata *tpr) {
 	#endif
 	if (tpr->wversion >= 27) {
 		if (trx_long(mf, &fsize)) return MOLFILE_ERROR;
-		//fsize = readInt64(xdrs);
 		#ifdef TPRDEBUG
 		printf("Filesize: %d\n", fsize);
 		#endif
@@ -340,9 +338,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 		printf("%c", tpr->symtab[SAVELEN*tmp+j]);
 	printf("\n");*/
 	//Now "read" in the forcefield. This SHOULD be do_ffparams
-	//printf("%d\n", xdr_getpos(xdrs));
 	readff(mf, tpr->version);
-	//printf("%d\n", xdr_getpos(xdrs));
 
 	//Read in the type of molecules.
 	if (trx_int(mf, &(tpr->nmoltypes))) return MOLFILE_ERROR;
@@ -632,7 +628,7 @@ static void *open_tpr_read(const char *filename, const char *,
     char buf[STRLEN];
     md_file *mf = new md_file;
 
-    int i;
+    int i, j;
     if (!(fin = fopen(filename, "rb"))) {
         fprintf(stderr, "tprplugin) Cannot open tpr file '%s'\n", filename);
         return NULL;
@@ -645,12 +641,11 @@ static void *open_tpr_read(const char *filename, const char *,
 	if (i > STRLEN) {//If i value is large, everything in the file should be endian swapped.
 		mf->rev = 1;
 	}
-	trx_string(mf, buf, STRLEN);
+	j = tpr_string(mf, buf, STRLEN);
 	if (trx_int(mf, &(mf->prec))) {
 		fprintf(stderr, "tprplugin) Could not read precision from file.\n");
         return NULL;
 	}
-    //printf("I have the precision! %d\n", mf->prec);
     if (mf->prec == 4) {
         tprdat = new tprdata;
         memset(tprdat, 0, sizeof(tprdata));
@@ -660,8 +655,6 @@ static void *open_tpr_read(const char *filename, const char *,
             return NULL;
         }
         *natoms = tprdat->natoms;
-        //printf("Total number of atoms: %d, %d\n", *natoms, tprdat->natoms);
-        //printf("Finished initial reading\n");
         return tprdat;
     }
     else {

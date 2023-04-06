@@ -77,7 +77,7 @@
 #define MDIO_MAX_ERRVAL		11
 
 // Format extensions
-const char *mdio_fmtexts[] = {
+static const char *mdio_fmtexts[] = {
     "",
     ".gro",
     ".trr",
