@@ -1,3 +1,15 @@
+/*
+Header that describes what is all *in* a tpr file, defining energies,
+force terms, and other stuff that we need to be interoperable with a tpr.
+*/
+
+#ifndef TRUE
+#define TRUE (1)
+#endif
+#ifndef FALSE
+#define FALSE (0)
+#endif
+
 //From topology/topology.h
 enum {
     egcTC,    egcENER,   egcACC, egcFREEZE,
@@ -125,8 +137,7 @@ struct tprdata {
     int **interactionlist[F_NRE];
     int *nr[F_NRE];
     int *molbtype, *molbnmol, *molbnatoms;
-    XDR* xdrptr;
-    FILE *f;
+    md_file *mf;
     int has_velocities;
     int readcoordinates;
 };

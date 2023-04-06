@@ -11,106 +11,113 @@ version 4.0 or later. This means TPX format version 58 and later.
 
 #define M_PI            3.14159265358979
 #define M_PI_2          (M_PI/2.0)
-#include "gmx_internal_xdr.h"
-#include "gmx_internal_xdr.cpp"
+#include "Gromacs.h"
 
 #define STRLEN 4096
 #define SAVELEN 8
 
 #include "tprformat.h"
-#include "xdrread.h"
+//#include "xdrread.h"
 #include "ffread.h"
 
-template<typename real>
-void readff(XDR* xdrs, int version) {
+int readff(md_file *mf, int version) {
     int atnr, ntypes, i, j;
     int *functype;
     double reppow =12.0;
     float fudge;
-    xdr_int(xdrs, &atnr);
+    if (trx_int(mf, &atnr)) return MOLFILE_ERROR;
     #ifdef TPRDEBUG
     printf("Atnr: %d\n", atnr);
     #endif
-    xdr_int(xdrs, &ntypes);
-    //printf("Ntypes: %d\n", ntypes);
+    if (trx_int(mf, &ntypes)) return MOLFILE_ERROR;
+    #ifdef TPRDEBUG
+    printf("Ntypes: %d\n", ntypes);
+    #endif
     functype = (int *) malloc(sizeof(int) * ntypes);
     for (i=0; i < ntypes; i++)
-        xdr_int(xdrs, &functype[i]);
+    	if (trx_int(mf, &functype[i])) return MOLFILE_ERROR;
     if (version >= 66)
-        xdr_double(xdrs, &reppow);
-    xdr_float(xdrs, &fudge);
+    	if (trx_double(mf, &reppow)) return MOLFILE_ERROR;
+   	if (trx_real(mf, &fudge)) return MOLFILE_ERROR;
     for (i = 0; i < ntypes; i++) {
         for (j = 0; (j < NFTUPD); j++) {
             if (version < ftupd[j].fvnr && functype[i] >= ftupd[j].ftype)
                 functype[i] += 1;
         }
-        readparams<float>(xdrs, version, functype[i]);
+        readparams(mf, version, functype[i]);
     }
     free(functype);
+    return MOLFILE_SUCCESS;
 }
 //do_atomtypes
-void read_atomtypes(XDR* xdrs, int version) {
+int read_atomtypes(md_file *mf, int version) {
     int i;
-    int numtypes = readInt(xdrs);
+    int err = 0;
+    int numtypes;
+    err |= trx_int(mf, &numtypes);
 #ifdef TPRDEBUG
     printf("Num atom types:%d\n", numtypes);
 #endif
     //Read a bunch of stuff that is set optionally.
     for (i = 0; i < numtypes; i++) {
         if (version < 113) {
-            readReal<float>(xdrs);//Radius?
-            readReal<float>(xdrs);//Volume?
-            readReal<float>(xdrs);//Surface tension?
+            err |= trx_real(mf, NULL);//Radius?
+            err |= trx_real(mf, NULL);//Volume?
+            err |= trx_real(mf, NULL);//Surface tension?
         }
         if (version >= 40) {
-            readReal<float>(xdrs);
+            err |= trx_real(mf, NULL);
         }
         if (version >= 60 && version < 113) {
-            readReal<float>(xdrs);
-            readReal<float>(xdrs);
+            err |= trx_real(mf, NULL);
+            err |= trx_real(mf, NULL);
         }
     }
+    return err;
 }
 //Reading in this case means discarding.
-void read_cmap(XDR* xdrs) {
+int read_cmap(md_file *mf) {
     int i, ngrid, gs;
-    ngrid = readInt(xdrs);
-    gs = readInt(xdrs);
+    int err = 0;
+    err |= trx_int(mf, &ngrid);
+    err |= trx_int(mf, &gs);
     #ifdef TPRDEBUG
     printf("ngrid: %d, gs: %d\n", ngrid, gs);
     printf("This many reals should be read: %d\n", ngrid * gs * gs);
     #endif
     for (i = 0; i < ngrid * gs * gs; i++) {
-        readReal<float>(xdrs);
-        readReal<float>(xdrs);
-        readReal<float>(xdrs);
-        readReal<float>(xdrs);
+    	err |= trx_real(mf, NULL);
+    	err |= trx_real(mf, NULL);
+    	err |= trx_real(mf, NULL);
+    	err |= trx_real(mf, NULL);
     }
+    return err;
 }
 //do_groups
-void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
+int read_groups(md_file *mf, int ngrp, tprdata *tpr) {
 	int g, i, j, tmp;
+	int err = 0;
 	//do_grps
 	#ifdef TPRDEBUG
 	printf("ngrp = %d\n", ngrp);
 	#endif
 	for(i = 0; i < ngrp; i++) {
-		tmp = readInt(xdrs);
+		err |= trx_int(mf, &tmp);
 		#ifdef TPRDEBUG
 		printf("Number of reads = %d\n", tmp);
 		#endif
 		for (j = 0; j < tmp; j++) {
-			readInt(xdrs);
+			trx_int(mf, NULL);
 		}
 	}
 	//end do_grps
 	//ngrpname
-	tmp = readInt(xdrs);
+	err |= trx_int(mf, &tmp);
 	#ifdef TPRDEBUG
 	printf("ngrpname = %d\n", tmp);
 	#endif
 	for (i = 0; i < tmp; i++) {
-		g = readInt(xdrs);
+		err |= trx_int(mf, &g);
 		#ifdef TPRDEBUG
 		printf("symtabid = %d\n", g);
 		for (j = 0; j < SAVELEN; j++)
@@ -119,7 +126,7 @@ void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 		#endif
 	}
 	for (g = 0; g < ngrp; g++) {
-		tmp = readInt(xdrs);
+		err |= trx_int(mf, &tmp);
 		#ifdef TPRDEBUG
 		printf("This many chars: %d\n", tmp);
 		#endif
@@ -127,18 +134,47 @@ void read_groups(XDR* xdrs, int ngrp, tprdata *tpr) {
 			//For reasons that aren't clear to me, writer version 27 has a different way of reading/writing the chars.
 			if (tpr->wversion >=27) {
 				// Advance the pointer by tmp bytes.
-				xdr_setpos(xdrs, xdr_getpos(xdrs) + tmp);
+				fseek(mf->f, tmp, SEEK_CUR);
 			}
 			else {
-				for (j = 0; j < tmp; j++)
-					readChar(xdrs);
+				fseek(mf->f, 4*tmp, SEEK_CUR);
 			}
 		}
 	}
+	return err;
 }
+
+#define MIN(a, b) ((a)<(b)? (a):(b))
+
+void tpr_save_string(md_file* mf, char* saveloc, int genversion) {
+    #ifdef _WIN32
+        long long int len = 0;
+    #else
+        long len = 0;
+    #endif
+    int i, j;
+    fpos_t pos;
+    char buf[STRLEN];
+    trx_long(mf, &len);
+    fread(buf, 1, int(len), mf->f);
+    // GROMACS is weird. Before writer version 27, the reads were always aligned to 4 bytes.
+    // In subsequent versions, they are not. So to maintain backwards compatability, add an
+    // extra seek.
+    if (genversion < 27 && len % 4) {
+    	fseek(mf->f, 4 - (len % 4), SEEK_CUR);
+    }
+
+    for (i = 0; i < MIN(int(len), (SAVELEN-1)); i++) {
+        saveloc[i] = buf[i];
+    }
+    saveloc[i] = '\0';
+
+}
+
 int readtprAfterPrecision (tprdata *tpr) {
 	//Start at do_tpx, trace down to do_tpxheader
-	XDR *xdrs = tpr->xdrptr;
+	md_file *mf = tpr->mf;
+	char buf[STRLEN];
 	tpr->readcoordinates = 0;
 	long fsize;
 	float dummy;
@@ -151,94 +187,105 @@ int readtprAfterPrecision (tprdata *tpr) {
 	unsigned short sdummy;
 	bool bClear;
 	int sum = 0;
-	tpr->version = readInt(xdrs);
+
+	if (trx_int(mf, &(tpr->version))) return MOLFILE_ERROR;
 	printf("File Format Version: %d\n", tpr->version);
 
 	if (tpr->version >= 77 && tpr->version <= 79) {
-		printString(xdrs);
+		trx_string(mf, buf, STRLEN);
 	}
 
-	tpr->wversion = readInt(xdrs);
+	if (trx_int(mf, &(tpr->wversion))) return MOLFILE_ERROR;
 	printf("Generator Version: %d\n", tpr->wversion);
-	
-	if (tpr->version >= 81) {
-		printString(xdrs);
-		//I dunno why this is wrong. Should say "release", but it totally doesn't.
-		xdr_setpos(xdrs, 4 + xdr_getpos(xdrs));
-	}
+
 	//Bailouts if things are too new/we can't guarantee accurately reading them.
 	if (tpr->wversion > 28 || tpr->version <= 57) {
 		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 122.\n", tpr->version);
 		printf("The generator version for your file is %d, but we can only read up to 28\n", tpr->wversion);
 		return MOLFILE_ERROR;
 	}
+	
+	if (tpr->version >= 81) {
+		j = tpr_string(mf, buf, STRLEN);
+		fread(buf, 4, 1, mf->f);
+		// //I dunno why this is wrong. Should say "release", but it totally doesn't.
+		// xdr_setpos(xdrs, 4 + xdr_getpos(xdrs));
+
+	}
 
 	//If we were dealing with TPA files, we'd need to do something here. Not a clue what.
 	//do_section line in the gromacs source.
-	tpr->natoms = readInt(xdrs);
+	if (trx_int(mf, &(tpr->natoms))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Natoms: %d\n", tpr->natoms);
 	#endif
-	tpr->ngtc = readInt(xdrs);
+
+	if (trx_int(mf, &(tpr->ngtc))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Ngtc: %d\n", tpr->ngtc);
 	#endif
 	if (tpr->version < 62) {
-		i = readInt(xdrs);
-		dummy = readReal<float>(xdrs);
+		if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
+		if (trx_real(mf, &dummy)) return MOLFILE_ERROR;
 	}
 
 	if (tpr->version >=79) {
-		xdr_int(xdrs, &tmp);
+		if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf("FEP state: %d\n", tmp);
 		#endif
 	}
-	dummy = readReal<float>(xdrs);
+	if (trx_real(mf, &dummy)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Lambda: %f\n", dummy);
 	#endif
-	hasIR = readInt(xdrs);
+	if (trx_int(mf, &hasIR)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("IR state?: %d\n", hasIR);
 	#endif
-	hasTop = readInt(xdrs);
+	if (trx_int(mf, &hasTop)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Contains topology: %d\n", hasTop);
 	#endif
-	hasCoord = readInt(xdrs);
+	if (trx_int(mf, &hasCoord)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Contains coordinates: %d\n", hasCoord);
 	#endif
-	hasV = readInt(xdrs);
+	if (trx_int(mf, &hasV)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Contains velocities: %d\n", hasV);
 	#endif
-  tpr->has_velocities = 0;
-  if(hasV) tpr->has_velocities = 1;
-	hasF = readInt(xdrs);
+	tpr->has_velocities = 0;
+	if(hasV) tpr->has_velocities = 1;
+	if (trx_int(mf, &hasF)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Contains forces: %d\n", hasF);
 	#endif
-	hasDim = readInt(xdrs);
+	if (trx_int(mf, &hasDim)) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Contains dimensions: %d\n", hasDim);
 	#endif
 	if (tpr->wversion >= 27) {
-		fsize = readInt64(xdrs);
+		if (trx_long(mf, &fsize)) return MOLFILE_ERROR;
+		//fsize = readInt64(xdrs);
 		#ifdef TPRDEBUG
 		printf("Filesize: %d\n", fsize);
 		#endif
 	}
+
 	//End of do_tpxheader
 	if (hasDim) {
-		readvector(xdrs, (tpr->boxdims), 9);
+		if (trx_rvector(mf, &(tpr->boxdims[0]))) return MOLFILE_ERROR;
+		if (trx_rvector(mf, &(tpr->boxdims[3]))) return MOLFILE_ERROR;
+		if (trx_rvector(mf, &(tpr->boxdims[6]))) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf("Box dim: (%f %f %f), (%f %f %f), (%f %f %f)\n", tpr->boxdims[0],tpr->boxdims[1],tpr->boxdims[2],
 		 	tpr->boxdims[3],tpr->boxdims[4],tpr->boxdims[5],tpr->boxdims[6],tpr->boxdims[7],tpr->boxdims[8]);
 		#endif
 		if (tpr->version >= 51) {
-			readvector(xdrs, boxoffset, 9);
+			if (trx_rvector(mf, &(boxoffset[0]))) return MOLFILE_ERROR;
+			if (trx_rvector(mf, &(boxoffset[3]))) return MOLFILE_ERROR;
+			if (trx_rvector(mf, &(boxoffset[6]))) return MOLFILE_ERROR;
 		}
 		else {
 			boxoffset[0] = boxoffset[1] = boxoffset[2] = 0;
@@ -247,7 +294,9 @@ int readtprAfterPrecision (tprdata *tpr) {
 		printf("Box offset: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxoffset[0],boxoffset[1],boxoffset[2],
 			boxoffset[3],boxoffset[4],boxoffset[5],boxoffset[6],boxoffset[7],boxoffset[8]);
 		#endif
-		readvector(xdrs, boxv, 9);
+		if (trx_rvector(mf, &(boxv[0]))) return MOLFILE_ERROR;
+		if (trx_rvector(mf, &(boxv[3]))) return MOLFILE_ERROR;
+		if (trx_rvector(mf, &(boxv[6]))) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf("Box vel: (%f %f %f), (%f %f %f), (%f %f %f)\n", boxv[0],boxv[1],boxv[2],
 			boxv[3],boxv[4],boxv[5],boxv[6],boxv[7],boxv[8]);
@@ -257,17 +306,18 @@ int readtprAfterPrecision (tprdata *tpr) {
 	if (tpr->ngtc) {
 		if (tpr->version < 69) {
 			for (i = 0; i < tpr->ngtc; i++) {
-				dummy = readReal<float>(xdrs);
+				if (trx_real(mf, &dummy)) return MOLFILE_ERROR;
 				//printf("NGTC %d: %f\n", i, dummy);
 			}
 		}
 		for (i = 0; i < tpr->ngtc; i++) {
-			dummy = readReal<float>(xdrs);
+			if (trx_real(mf, &dummy)) return MOLFILE_ERROR;
 			//printf("NGTC %d: %f\n", i, dummy);
 		}
 	}
+
 	//do_mtop starts here, which starts by reading the symtab (do_symtab)
-	tpr->symtablen = readInt(xdrs);
+	if (trx_int(mf, &(tpr->symtablen))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Symtab length: %d\n", tpr->symtablen);
 	#endif
@@ -276,7 +326,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 		#ifdef TPREXTRADEBUG
 		printf("i=%d\n", i);
 		#endif
-		saveString(xdrs, &(tpr->symtab[SAVELEN * i]),tpr->wversion);
+		tpr_save_string(mf, &(tpr->symtab[SAVELEN * i]),tpr->wversion);
 	}
 	#ifdef TPRDEBUG
 	for (i = 0; i < tpr->symtablen; i++) {
@@ -285,18 +335,19 @@ int readtprAfterPrecision (tprdata *tpr) {
 		printf("\n");
 	}
 	#endif
-	tmp = readInt(xdrs);
+
+	if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
 	/*printf ("System name: ");
 	for (j = 0; j < SAVELEN; j++)
 		printf("%c", tpr->symtab[SAVELEN*tmp+j]);
 	printf("\n");*/
 	//Now "read" in the forcefield. This SHOULD be do_ffparams
 	//printf("%d\n", xdr_getpos(xdrs));
-	readff<float>(xdrs, tpr->version);
+	readff(mf, tpr->version);
 	//printf("%d\n", xdr_getpos(xdrs));
 
 	//Read in the type of molecules.
-	tpr->nmoltypes = readInt(xdrs);
+	if (trx_int(mf, &(tpr->nmoltypes))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("nmoltypes: %d\n", tpr->nmoltypes);
 	#endif
@@ -321,15 +372,15 @@ int readtprAfterPrecision (tprdata *tpr) {
 	//printf("Malloced things\n");
 	//do_moltype
 	for (i = 0; i < tpr->nmoltypes; i++) {
-		tpr->molnames[i] = readInt(xdrs);
+		if (trx_int(mf, &(tpr->molnames[i]))) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf ("Mol name %d: ", i);
 		for (j = 0; j < SAVELEN; j++)
 			printf("%c", tpr->symtab[SAVELEN*tpr->molnames[i]+j]);
 		printf("\n");
 		#endif
-		tpr->atomsinmol[i] = readInt(xdrs);
-		tpr->resinmol[i] = readInt(xdrs);
+		if (trx_int(mf, &(tpr->atomsinmol[i]))) return MOLFILE_ERROR;
+		if (trx_int(mf, &(tpr->resinmol[i]))) return MOLFILE_ERROR;
 		tpr->charges[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
 		tpr->masses[i] = (float*) malloc(sizeof(float) * tpr->atomsinmol[i]);
 		tpr->types[i] = (unsigned short*) malloc(sizeof(unsigned short) * tpr->atomsinmol[i]);
@@ -340,19 +391,21 @@ int readtprAfterPrecision (tprdata *tpr) {
 		printf("%d atoms, %d residues in molecule %d\n", tpr->atomsinmol[i], tpr->resinmol[i], i);
 		#endif
 		for (j=0; j < tpr->atomsinmol[i]; j++) {
-			tpr->masses[i][j] = readReal<float>(xdrs);
-			tpr->charges[i][j] = readReal<float>(xdrs);
-			readReal<float>(xdrs); //mB
-			readReal<float>(xdrs); //cB
-			xdr_u_short(xdrs, &(tpr->types[i][j]));
-			xdr_u_short(xdrs, &sdummy);//typeB
+			if (trx_real(mf, &(tpr->masses[i][j]))) return MOLFILE_ERROR;
+			if (trx_real(mf, &(tpr->charges[i][j]))) return MOLFILE_ERROR;
+			if (trx_real(mf, NULL)) return MOLFILE_ERROR; //mB
+			if (trx_real(mf, NULL)) return MOLFILE_ERROR; //cB
+
+			if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
+			tpr->types[i][j] = (unsigned short) tmp;
+			if (trx_int(mf, &tmp)) return MOLFILE_ERROR;//typeB
 			if (tpr->wversion >=27) {
-				xdr_setpos(xdrs, xdr_getpos(xdrs)-4);
+				fseek(mf->f, -4, SEEK_CUR);
 			}
-			tpr->ptypes[i][j] = readInt(xdrs);
-			tpr->resids[i][j] = readInt(xdrs);
+			if (trx_int(mf, &(tpr->ptypes[i][j]))) return MOLFILE_ERROR;
+			if (trx_int(mf, &(tpr->resids[i][j]))) return MOLFILE_ERROR;
 			if (tpr->version >= 52) {
-				tpr->atomicnumbers[i][j] = readInt(xdrs);
+				if (trx_int(mf, &(tpr->atomicnumbers[i][j]))) return MOLFILE_ERROR;
 			}
 			#ifdef TPREXTRADEBUG
 			if (i == 0)
@@ -361,24 +414,25 @@ int readtprAfterPrecision (tprdata *tpr) {
 			#endif
 		}
 		tpr->atomnameids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-		readintvector(xdrs, tpr->atomnameids[i], tpr->atomsinmol[i]);
+		if (tpr_ivector(mf, tpr->atomnameids[i], tpr->atomsinmol[i])) return MOLFILE_ERROR;
 		tpr->atomtypeids[i] = (int*) malloc(sizeof(int) * tpr->atomsinmol[i]);
-		readintvector(xdrs, tpr->atomtypeids[i], tpr->atomsinmol[i]);
+		if (tpr_ivector(mf, tpr->atomtypeids[i], tpr->atomsinmol[i])) return MOLFILE_ERROR;
 		for (j = 0; j < tpr->atomsinmol[i]; j++) {
-			readReal<float>(xdrs);
+			if (trx_real(mf, NULL)) return MOLFILE_ERROR;
 		}
+
 		//Read residues
 		tpr->resnames[i] = (int*) malloc(sizeof(int) * tpr->resinmol[i]);
 		#ifdef TPRDEBUG
 		printf("%d residues in mol %d\n", tpr->resinmol[i], i);
 		#endif
 		for (j = 0; j < tpr->resinmol[i]; j++) {
-			tpr->resnames[i][j] = readInt(xdrs);
+			if (trx_int(mf, &(tpr->resnames[i][j]))) return MOLFILE_ERROR;
 			if (tpr->version >=63) {
 				if (tpr->wversion < 27)
-					xdr_setpos(xdrs, 8 + xdr_getpos(xdrs));
+					fseek(mf->f, 8, SEEK_CUR);
 				else
-					xdr_setpos(xdrs, 5 + xdr_getpos(xdrs));
+					fseek(mf->f, 5, SEEK_CUR);
 			}
 			else
 				tpr->resnames[i][j] += 1;
@@ -407,7 +461,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 				tpr->nr[j][i] = 0;
 			}
 			else {
-				tpr->nr[j][i] = readInt(xdrs);
+				if (trx_int(mf, &(tpr->nr[j][i]))) return MOLFILE_ERROR;
 				#ifdef TPREXTRADEBUG
 				printf("j, k, interactions: %d, %d, %d\n", j, k, tpr->nr[j][i]);
 				#endif
@@ -417,7 +471,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 				#ifdef TPRDEBUG
 				printf("Interaction id: %d number of interactants %d\n", j, tpr->nr[j][i]);
 				#endif
-				readintvector(xdrs, tpr->interactionlist[j][i], tpr->nr[j][i]);
+				tpr_ivector(mf, tpr->interactionlist[j][i], tpr->nr[j][i]);
 				#ifdef TPREXTRADEBUG
 				for (k=0; k < tpr->nr[j][i]; k++) {
 					printf("%d ", tpr->interactionlist[j][i][k]);
@@ -434,21 +488,22 @@ int readtprAfterPrecision (tprdata *tpr) {
 
 		//do_block and do_blocka. Remove these. VMD doesn't know what they are.
 		//They refer to atomgroups and exclusions. Useful for dynamics, not useful for visualization.
-		k = readInt(xdrs);
+		if (trx_int(mf, &k)) return MOLFILE_ERROR;
 		for (j = 0; j <= k; j++) {
-			readInt(xdrs);
+			if (trx_int(mf, NULL)) return MOLFILE_ERROR;
 		}
-		k = readInt(xdrs);
-		tmp = readInt(xdrs);
+		if (trx_int(mf, &k)) return MOLFILE_ERROR;
+		if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
 		for (j = 0; j <= k; j++) {
-			readInt(xdrs);
+			if (trx_int(mf, NULL)) return MOLFILE_ERROR;
 		}
 		for (j = 0; j < tmp; j++) {
-			readInt(xdrs);
+			if (trx_int(mf, NULL)) return MOLFILE_ERROR;
 		}
 	}
 	//end of do_moltype
-	tpr->nmolblock = readInt(xdrs);
+
+	if (trx_int(mf, &(tpr->nmolblock))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("nmolblock: %d\n", tpr->nmolblock);
 	#endif
@@ -457,23 +512,23 @@ int readtprAfterPrecision (tprdata *tpr) {
 	tpr->molbnmol = (int*) malloc(tpr->nmolblock * sizeof(int));
 	tpr->molbnatoms = (int*) malloc(tpr->nmolblock * sizeof(int));
 	for (i = 0; i < tpr->nmolblock; i++) {
-		tpr->molbtype[i] = readInt(xdrs);
-		tpr->molbnmol[i] = readInt(xdrs);
-		tpr->molbnatoms[i] = readInt(xdrs);
-		k = readInt(xdrs);
+		if (trx_int(mf, &(tpr->molbtype[i]))) return MOLFILE_ERROR;
+		if (trx_int(mf, &(tpr->molbnmol[i]))) return MOLFILE_ERROR;
+		if (trx_int(mf, &(tpr->molbnatoms[i]))) return MOLFILE_ERROR;
+		if (trx_int(mf, &k)) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf("posresXA: %d\n", k);
 		#endif
 		//Position restraints have a float for every coordinate, hence the multiplier by 3.
 		for (j = 0; j < 3 * k; j++) {
-			readReal<float>(xdrs);
+			if (trx_real(mf, NULL)) return MOLFILE_ERROR;
 		}
-		k = readInt(xdrs);
+		if (trx_int(mf, &k)) return MOLFILE_ERROR;
 		#ifdef TPRDEBUG
 		printf("posresXB: %d\n", k);
 		#endif
 		for (j = 0; j < 3 * k; j++) {
-			readReal<float>(xdrs);
+			if (trx_real(mf, NULL)) return MOLFILE_ERROR;
 		}
 		#ifdef TPRDEBUG
 		printf("Segname: %d ", tpr->molbtype[i]);
@@ -486,12 +541,12 @@ int readtprAfterPrecision (tprdata *tpr) {
 		//sum += tpr->molbnatoms[i] * tpr->molbnmol[i];
 	}
 	//Burn off the number of atoms after the do_molblock
-	tmp = readInt(xdrs);
+	if (trx_int(mf, &tmp)) return MOLFILE_ERROR;
 #ifdef TPRDEBUG
     printf("What is this? %d. It should be the number of atoms.\n", tmp);
 #endif
-    if (tpr->version >= 103) {
-        hasIntermoleculeBonds = readInt(xdrs);
+    if (tpr->version >= 103) { //103 is tpxv_IntermolecularBondeds
+    	if (trx_int(mf, &hasIntermoleculeBonds)) return MOLFILE_ERROR;
 #ifdef TPRDEBUG
         printf("intermolecularbondeds %d\n", hasIntermoleculeBonds);
 #endif
@@ -500,42 +555,41 @@ int readtprAfterPrecision (tprdata *tpr) {
             return MOLFILE_ERROR;
         }
         if (tpr->wversion >= 27) {
-            xdr_setpos(xdrs, xdr_getpos(xdrs) - 3);
+        	fseek(mf->f, -3, SEEK_CUR);
         }
     }
-    //do_atomtypes
-    read_atomtypes(xdrs, tpr->version);
+    if (tpr->version < 128) {//128 is tpxv_RemoveAtomtypes
+	    //do_atomtypes
+	    if (read_atomtypes(mf, tpr->version)) return MOLFILE_ERROR;
+	}
 #ifdef TPRDEBUG
     printf("Reading cmap terms\n");
 #endif
     //do_cmap
     if (tpr->version >= 65) {
-        read_cmap(xdrs);
+        if (read_cmap(mf)) return MOLFILE_ERROR;
     }
     //do_groups
 #ifdef TPRDEBUG
     printf("Reading groups\n");
 #endif
-    read_groups(xdrs, egcNR, tpr);
+    read_groups(mf, egcNR, tpr);
     if (tpr->version >= 120) {
-        int len = readInt64(xdrs);
+    	long len;
+    	if (trx_long(mf, &len)) return MOLFILE_ERROR;
         int* jj = new int[len];
         #ifdef TPRDEBUG
         printf("Intermolecular Exclusions: %d\n", len);
-        printf("%d\n", xdr_getpos(xdrs));
+        printf("%d\n", ftell(mf->f));
         #endif
-        readintvector(xdrs, jj, len);
-        //printf("%d\n", xdr_getpos(xdrs));
-        //xdr_setpos(xdrs, xdr_getpos(xdrs) + sizeof(int) * int(len));
+        tpr_ivector(mf, jj, len);
     }
 #ifdef TPRDEBUG
-    printf("This is my file position: %d\n", xdr_getpos(xdrs));
+    printf("This is my file position: %d\n", ftell(mf->f));
     printf("Returning control\n");
 #endif
     return MOLFILE_SUCCESS;
 }
-
-
 
 static int read_tpr_structure(void *mydata, int *optflags, molfile_atom_t *atoms) {
     tprdata *tpr = (tprdata *) mydata;
@@ -574,25 +628,32 @@ static void *open_tpr_read(const char *filename, const char *,
     int *natoms) {
     tprdata *tprdat = NULL;
     FILE *fin;
-    XDR *xdrs = new XDR;
+    char buf[STRLEN];
+    md_file *mf = new md_file;
+
     int i;
-    int precision;
     if (!(fin = fopen(filename, "rb"))) {
         fprintf(stderr, "tprplugin) Cannot open tpr file '%s'\n", filename);
         return NULL;
     }
-    xdrstdio_create(xdrs, fin, XDR_DECODE);
-    xdr_int(xdrs, &i);
-    //printf("%d\n", i);
-    printString(xdrs);
-    precision = readInt(xdrs);
-    //printf("%d\n", precision);
-    //printf("I have the precision! %d\n", precision);
-    if (precision == 4) {
+    mf->f = fin;
+    if (trx_int(mf, &i)) {
+    	fprintf(stderr, "tprplugin) Could not read initial integer from file.\n");
+        return NULL;
+    }
+	if (i > STRLEN) {//If i value is large, everything in the file should be endian swapped.
+		mf->rev = 1;
+	}
+	trx_string(mf, buf, STRLEN);
+	if (trx_int(mf, &(mf->prec))) {
+		fprintf(stderr, "tprplugin) Could not read precision from file.\n");
+        return NULL;
+	}
+    //printf("I have the precision! %d\n", mf->prec);
+    if (mf->prec == 4) {
         tprdat = new tprdata;
         memset(tprdat, 0, sizeof(tprdata));
-        tprdat->f = fin;
-        tprdat->xdrptr = xdrs;
+        tprdat->mf = mf;
         if (readtprAfterPrecision(tprdat) != MOLFILE_SUCCESS) {
             delete tprdat;
             return NULL;
@@ -603,7 +664,7 @@ static void *open_tpr_read(const char *filename, const char *,
         return tprdat;
     }
     else {
-        printf("Illegal precision (requires single)\n");
+    	fprintf(stderr, "tprplugin) Illegal precision (requires single)\n");
         return NULL;
     }
     fclose(fin);
@@ -612,13 +673,13 @@ static void *open_tpr_read(const char *filename, const char *,
 
 static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
     tprdata *tpr = (tprdata *)v;
-    XDR *xdrs = tpr->xdrptr;
+    md_file *mf = tpr->mf;
     if (tpr->readcoordinates) {
         return MOLFILE_ERROR;
     }
     //Get the positions.
     if (ts != NULL) {
-        readvector(xdrs, ts->coords, 3 * tpr->natoms);
+        tpr_rvector(mf, ts->coords, 3 * tpr->natoms);
         for (int i = 0; i < 3 * natoms; i++) {
             ts->coords[i] = 10 * ts->coords[i]; //A
         }
@@ -627,7 +688,7 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
         for (int i = 0; i < natoms; i++) {
             printf("x[%d]: %f %f %f\n", i,   ts->coords[3*i+0], ts->coords[3*i+1],ts->coords[3*i+2]);
         }
-        printf("coordinate end position: %d\n", xdr_getpos(xdrs));
+        printf("coordinate end position: %d\n", ftell(mf->f));
 
         for (int i = 0; i < 3*natoms; i++) {
             if (! isfinite(ts->coords[i])) {
@@ -638,7 +699,7 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
 
         if(tpr->has_velocities)
         {
-            readvector(xdrs, ts->velocities, 3 * tpr->natoms);
+            tpr_rvector(mf, ts->velocities, 3 * tpr->natoms);
             for (int i = 0; i < 3 * natoms; i++)
             {
                 ts->velocities[i] *= 10; //A/ps
@@ -654,7 +715,7 @@ static int read_tpr_timestep(void *v, int natoms, molfile_timestep_t *ts) {
             {
                 printf("v[%d]: %f %f %f\n", i,   ts->velocities[3*i+0], ts->velocities[3*i+1],ts->velocities[3*i+2]);
             }
-            printf("velocity end position: %d\n", xdr_getpos(xdrs));
+            printf("velocity end position: %d\n", ftell(mf->f));
         }
         #endif
 
@@ -963,7 +1024,7 @@ static void close_tpr_read(void *mydata) {
 	int i, j;
 	//printf("Closing TPR file\n");
 	tprdata *tpr = (tprdata *)mydata;
-	fclose(tpr->f);
+	fclose(tpr->mf->f);
 	for (i = 0; i < tpr->nmoltypes; i++) {
 		//printf("%d of %d (%d atoms)\n", i+1, tpr->nmoltypes, tpr->atomsinmol[i]);
 		free(tpr->charges[i]);
@@ -1004,8 +1065,7 @@ static void close_tpr_read(void *mydata) {
 	free(tpr->symtab);
 	free(tpr->atomsinmol);
 	free(tpr->resinmol);
-	xdr_destroy(tpr->xdrptr);
-	delete tpr->xdrptr;
+	//delete tpr->mf;
 	delete tpr;
 	//printf("TPR file read completely\n");
 }
@@ -1026,8 +1086,8 @@ VMDPLUGIN_API int VMDPLUGIN_init(void) {
     tpr_plugin.name = "tpr";
     tpr_plugin.prettyname = "Gromacs Binary Topology";
     tpr_plugin.author = "Josh Vermaas";
-    tpr_plugin.majorv = 2020;
-    tpr_plugin.minorv = 2;//Corresponds to the Gromacs version I was basing this on.
+    tpr_plugin.majorv = 2023;
+    tpr_plugin.minorv = 0;//Corresponds to the Gromacs version I was basing this on.
     tpr_plugin.is_reentrant = VMDPLUGIN_THREADUNSAFE;
     tpr_plugin.filename_extension = "tpr";
     tpr_plugin.open_file_read = open_tpr_read;

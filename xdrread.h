@@ -1,27 +1,17 @@
-template<typename real>
-float readReal (XDR* xdrs) {
-    real dummy;
-    switch (sizeof(real)) {
-        case 4:
-        xdr_float(xdrs, (float*)&dummy); break;
-        case 8:
-        xdr_double(xdrs, (double*)&dummy); break;
-    }
-    return (float)dummy;
+/*
+These define our little intermediate procedures to read reals, ints, chars, and
+other things based on the XDR spec. Unfortunately, XDR has become super niche,
+and so even things like python are deprecating the libraries that handle XDRs.
+*/
+float readReal (md_file* mf) {
+    float tmp;
+    trx_real(mf, &tmp);
+    return tmp;
 }
 inline int readInt (XDR* xdrs) {
     int tmp;
-    xdr_int (xdrs, &tmp);
+    trx_int(xdrs, &tmp);
     return tmp;
-}
-inline int readIntTPR (tprdata* tpr) {
-	tpr->f;
-	int result;
-	if (fread(&result, 4, 1, tpr->f) != 1) {
-		printf("Could not read integer at position %ld\n", ftell(tpr->f));
-		return -1;
-	}
-	return result;
 }
 inline long long int readInt64 (XDR* xdrs) {
 #ifdef _WIN32
