@@ -42,6 +42,7 @@ int readff(md_file *mf, int version) {
             if (version < ftupd[j].fvnr && functype[i] >= ftupd[j].ftype)
                 functype[i] += 1;
         }
+        //Equivalent to do_iparams
         readparams(mf, version, functype[i]);
     }
     free(functype);
@@ -270,6 +271,8 @@ int readtprAfterPrecision (tprdata *tpr) {
 	}
 
 	//End of do_tpxheader
+	//Now start in do_tpx_body
+	//Lead with do_tprx_state_first
 	if (hasDim) {
 		if (trx_rvector(mf, &(tpr->boxdims[0]))) return MOLFILE_ERROR;
 		if (trx_rvector(mf, &(tpr->boxdims[3]))) return MOLFILE_ERROR;
@@ -312,7 +315,8 @@ int readtprAfterPrecision (tprdata *tpr) {
 		}
 	}
 
-	//do_mtop starts here, which starts by reading the symtab (do_symtab)
+	//do_tpx_mtop points to do_mtop, which starts here.
+	//do_mtop starts by reading the symtab (do_symtab)
 	if (trx_int(mf, &(tpr->symtablen))) return MOLFILE_ERROR;
 	#ifdef TPRDEBUG
 	printf("Symtab length: %d\n", tpr->symtablen);
@@ -337,6 +341,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 	for (j = 0; j < SAVELEN; j++)
 		printf("%c", tpr->symtab[SAVELEN*tmp+j]);
 	printf("\n");*/
+
 	//Now "read" in the forcefield. This SHOULD be do_ffparams
 	readff(mf, tpr->version);
 

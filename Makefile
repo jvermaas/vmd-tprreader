@@ -8,3 +8,5 @@ test:
 	for tpr in `ls testtprs/*tpr` ; do \
 		./tprtest $$tpr ; \
 	done
+2025:
+	./tprtest testtprs/2025.tpr

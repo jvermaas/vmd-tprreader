@@ -92,6 +92,7 @@ enum
     F_COM_PULL,
     F_DENSITYFITTING,
     F_EQM,
+    F_ENNPOT,
     F_EPOT,
     F_EKIN,
     F_ETOT,
@@ -197,11 +198,13 @@ static const t_ftupd ftupd[] = {
     { 79, F_DVDL_TEMPERATURE  },
     { 117, F_DENSITYFITTING },
     { 118, F_VSITE2FD },
-    { 121, F_VSITE1 }
+    { 121, F_VSITE1 },
+    { 137, F_ENNPOT}
 };
 #define asize(a) ((int)(sizeof(a)/sizeof((a)[0])))
 #define NFTUPD asize(ftupd)
 
+//Equivalent to do_iparams
 void readparams (md_file *mf, int file_version, int ftype) {
     switch (ftype)
     {
