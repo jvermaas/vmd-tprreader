@@ -199,7 +199,7 @@ int readtprAfterPrecision (tprdata *tpr) {
 
 	//Bailouts if things are too new/we can't guarantee accurately reading them.
 	if (tpr->wversion > 28 || tpr->version <= 57) {
-		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 128.\n", tpr->version);
+		printf("Your file cannot be read, as it has version %d, but we can read from version 57 to at least 137.\n", tpr->version);
 		printf("The generator version for your file is %d, but we can only read up to 28\n", tpr->wversion);
 		return MOLFILE_ERROR;
 	}
