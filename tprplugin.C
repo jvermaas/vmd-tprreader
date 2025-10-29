@@ -1085,8 +1085,8 @@ VMDPLUGIN_API int VMDPLUGIN_init(void) {
     tpr_plugin.name = "tpr";
     tpr_plugin.prettyname = "Gromacs Binary Topology";
     tpr_plugin.author = "Josh Vermaas";
-    tpr_plugin.majorv = 2023;
-    tpr_plugin.minorv = 0;//Corresponds to the Gromacs version I was basing this on.
+    tpr_plugin.majorv = 2025;
+    tpr_plugin.minorv = 3;//Corresponds to the Gromacs version I was basing this on.
     tpr_plugin.is_reentrant = VMDPLUGIN_THREADUNSAFE;
     tpr_plugin.filename_extension = "tpr";
     tpr_plugin.open_file_read = open_tpr_read;
