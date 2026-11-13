@@ -10,3 +10,6 @@ test:
 	done
 2025:
 	./tprtest testtprs/2025.tpr
+2026:
+	./tprtest testtprs/2026.tpr
+	./tprtest testtprs/2026sample.tpr
